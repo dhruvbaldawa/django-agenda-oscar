@@ -15,13 +15,13 @@ First, install via pip (on Windows, replace ``pip3`` with ``pip``)
 
 ::
 
-  pip3 install django-schedule
+  pip3 install django-agenda
   
 Then, edit your ``settings.py``, adding this line to ``INSTALLED_APPS``
   
 ::
 
-      'schedule',
+      'django_agenda',
 
 
 Features

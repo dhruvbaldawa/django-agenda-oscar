@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import os
 from setuptools import setup
 
@@ -19,7 +19,7 @@ setup(
     long_description=read('README.rst'),
     author='Alan Trick',
     author_email='me@alantrick.ca',
-    url='https://bitbucket.org/alantrick/django-schedule',
+    url='https://bitbucket.org/alantrick/django-agenda',
     packages=[
         'django_agenda',
         'django_agenda.migrations',

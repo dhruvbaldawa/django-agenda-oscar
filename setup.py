@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
+import os
 from setuptools import setup
 
 # Utility function to read the README file.
@@ -13,7 +13,7 @@ def read(fname):
 
 
 setup(
-    name='django-schedule',
+    name='django-agenda',
     version='0.1',
     description='A scheduling app for Django.',
     long_description=read('README.rst'),
@@ -21,8 +21,8 @@ setup(
     author_email='me@alantrick.ca',
     url='https://bitbucket.org/alantrick/django-schedule',
     packages=[
-        'django_schedule',
-        'django_schedule.migrations',
+        'django_agenda',
+        'django_agenda.migrations',
     ],
     include_package_data=True,
     zip_safe=False,  # everyone hates eggs
@@ -47,5 +47,5 @@ setup(
         'pytz',
     ],
     license='LGPL',
-    test_suite='django_schedule.runtests.run_tests',
+    test_suite='django_agenda.runtests.run_tests',
 )

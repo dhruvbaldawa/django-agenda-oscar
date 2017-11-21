@@ -23,7 +23,7 @@ SETTINGS_DICT = {
         'django.contrib.auth',
         'django.contrib.contenttypes',
         'django.contrib.sessions',
-        'django_schedule',
+        'django_agenda',
     ),
     'DATABASES': {
         'default': {
@@ -58,7 +58,7 @@ def run_tests():
 
     # And then we run tests and return the results.
     test_runner = TestRunner(verbosity=2, interactive=True)
-    failures = test_runner.run_tests(['django_schedule.tests'])
+    failures = test_runner.run_tests(['django_agenda.tests'])
     sys.exit(bool(failures))
 
 

@@ -7,5 +7,5 @@ class KudozConfig(AppConfig):
     verbose_name = _('Schedule')
 
     def ready(self):
-        import django_schedule.signals
-        django_schedule.signals.setup()
+        import django_agenda.signals
+        django_agenda.signals.setup()

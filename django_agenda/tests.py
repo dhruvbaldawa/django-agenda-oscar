@@ -4,9 +4,9 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 import pytz
 
-from django_schedule.models import (Availability, AvailabilityOccurrence,
-                                    TimeUnavailableError, recreate_time_slots)
-import django_schedule.signals
+from django_agenda.models import (Availability, AvailabilityOccurrence,
+                                  TimeUnavailableError, recreate_time_slots)
+import django_agenda.signals
 
 
 def create_host():
@@ -20,7 +20,7 @@ def create_booker():
 class OccurrenceUnitTests(TestCase):
 
     def setUp(self):
-        django_schedule.signals.teardown()
+        django_agenda.signals.teardown()
         self.host = create_host()
 
     def testAll(self):

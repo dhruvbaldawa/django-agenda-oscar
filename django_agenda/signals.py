@@ -4,7 +4,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import signals
 from django.utils import timezone
 
-from django_schedule import models
+from django_agenda import models
 
 
 def update_time_slots(sender, instance, created, raw, **kwargs):

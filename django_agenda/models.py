@@ -319,6 +319,20 @@ class TimeSlot(models.Model):
         else:
             self.delete()
 
+    def bookable(self, start: datetime, end: datetime) -> bool:
+        '''
+        Check if a slot can fit a booking inside of it.
+
+        The start and end of the booking are specified by `start` and `end`.
+        If the slot is already booked, the start and end must line up exactly
+        (so that the slot is not split), otherwise the start and end have to
+        fit inside the slots start and end.
+        '''
+        if self.start == start and self.end == end:
+            return True
+        return (self.start <= start and self.end >= end and
+                not self.bookings.exists())
+
     @property
     def available(self):
         return not self.busy
@@ -423,17 +437,43 @@ class AbstractBooking(models.Model):
 
     def find_slots(self,
                    spans: List[Tuple[datetime, datetime]]):
-        all_slots = self.subject.time_slots
         for start, end in spans:
-            # FIXME: if a booked slot, don't try to split it
-            # reserve slot
-            query = all_slots.filter(
-                start__lte=start, end__gte=end, busy=False)
-
-            if not query.exists():
+            # get all slots that have some space in this span
+            # all of these should be
+            all_slots = self.subject.time_slots.filter(
+                start__lt=end, end__gt=start).all()
+            if any(s.busy for s in all_slots):
+                # this for sure blocks us
                 raise TimeUnavailableError(
-                    'Requested time is unavailable')
-            yield query[0], start, end
+                    'Requested time is busy')
+            # now all the slots are free
+            free_slot = next(
+                (x for x in all_slots if x.bookable(start, end)), None)
+            if free_slot is not None:
+                yield free_slot, start, end
+            else:
+                if not self._book_unscheduled():
+                    raise RuntimeError('adsafd')
+                    raise TimeUnavailableError(
+                        'Requested time is unavailable')
+                if any(s.bookings.exist() for s in all_slots):
+                    raise TimeUnavailableError(
+                        'Part of requested time is booked')
+                # all these slots can be pushed around
+                for old_slot in all_slots:
+                    if old_slot.start >= start and old_slot.end <= end:
+                        old_slot.delete()
+                    else:
+                        if old_slot.start <= end:
+                            old_slot.start = end
+                        if old_slot.end >= end:
+                            old_slot.end = end
+                        old_slot.save()
+                slot = TimeSlot.objects.create(
+                    start=start, end=end,
+                    subject_type=self.subject_type,
+                    subject_id=self.subject_id)
+                yield slot, start, end
 
     def save(self, *args, **kwargs):
         # reserve slots if necessary
@@ -490,6 +530,13 @@ class AbstractBooking(models.Model):
 
     def _is_booked_slot_busy(self, slot):
         return self.subject.allow_multiple_bookings
+
+    def _book_unscheduled(self):
+        '''
+        If this returns true, bookings will automatically create slots in
+        unscheduled space.
+        '''
+        return False
 
     def _add_slots(self, slots: List[TimeSlot]):
         '''

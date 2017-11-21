@@ -27,12 +27,12 @@ Then, edit your ``settings.py``, adding this line to ``INSTALLED_APPS``
 Features
 --------
 
-  * Create recurring availabilities. We should support everything that
-    RFC 2445 does.
-  * Automatically generate time slots from availabilities. This handles
-    overlapping availabilities, timezones, and joining adjacent slots.
-  * Subclass AbstractBooking to create bookings. Bookings will reserve
-    time slots, and flag them as busy.
-  * Uses generic foreign keys, so you can relate your availabilities &
-    bookings to anything (a user, an office space, a classroom)
+* Create recurring availabilities. We should support everything that
+  RFC 2445 does.
+* Automatically generate time slots from availabilities. This handles
+  overlapping availabilities, timezones, and joining adjacent slots.
+* Subclass AbstractBooking to create bookings. Bookings will reserve
+  time slots, and flag them as busy.
+* Uses generic foreign keys, so you can relate your availabilities &
+  bookings to anything (a user, an office space, a classroom)
 

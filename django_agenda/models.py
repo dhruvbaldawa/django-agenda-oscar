@@ -30,6 +30,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
+import django.utils
 from django.utils.dateformat import DateFormat, TimeFormat
 from django.utils.translation import ugettext_lazy as _
 import pytz
@@ -118,18 +119,19 @@ class Availability(models.Model):
         for occurrence in all_slots:
             occurrence_dict[(occurrence.start, occurrence.end)] = occurrence
         # TODO: this matching is really inefficient
-        for start, end in self.get_recurrences(start, end):
-            if (start, end) in occurrence_dict:
+        for r_start, r_end in self.get_recurrences(start, end):
+            if (r_start, r_end) in occurrence_dict:
                 # yay we matched our occurrence, pop it
-                del occurrence_dict[(start, end)]
+                del occurrence_dict[(r_start, r_end)]
             else:
-                AvailabilityOccurrence.objects.create(
+                occurrence = AvailabilityOccurrence.objects.create(
                     availability=self,
-                    start=start,
-                    end=end,
+                    start=r_start,
+                    end=r_end,
                     subject_type=self.subject_type,
                     subject_id=self.subject_id,
                 )
+                occurrence.regen()
         # remaining occurrence_dict items need to die
         for occurrence in occurrence_dict.values():
             # just in case
@@ -580,7 +582,7 @@ def recreate_time_slots(start=None, end=None):
     New time slots are created between start & end inclusive
     '''
     if start is None:
-        start = timezone.now()
+        start = django.utils.timezone.now()
     if end is None:
         end = start + timedelta(days=100)
 

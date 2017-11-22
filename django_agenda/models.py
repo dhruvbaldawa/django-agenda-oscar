@@ -426,10 +426,14 @@ class AbstractBooking(models.Model):
         return add_times, list(slot_times.values())
 
     def clear_slots(self, slots):
+        '''
+        '''
         changed_times = []
         for slot in slots:
-            slot.delete()
-            changed_times.append((slot.start, slot.end))
+            self._disconnect_slot(slot)
+            if not slot.bookings.exists():
+                slot.delete()
+                changed_times.append((slot.start, slot.end))
         for start, end in changed_times:
             for occurrence in AvailabilityOccurrence.objects.filter(
                     subject_id=self.subject_id,
@@ -455,7 +459,6 @@ class AbstractBooking(models.Model):
                 yield free_slot, start, end
             else:
                 if not self._book_unscheduled():
-                    raise RuntimeError('adsafd')
                     raise TimeUnavailableError(
                         'Requested time is unavailable')
                 if any(s.bookings.exist() for s in all_slots):
@@ -547,6 +550,10 @@ class AbstractBooking(models.Model):
         This should save the related date without calling Booking.save
         '''
         raise NotImplementedError
+
+    def _disconnect_slot(self, slot: TimeSlot):
+        # something like this
+        slot.bookings.remove(self)
 
     def get_reserved_times(self):
         '''

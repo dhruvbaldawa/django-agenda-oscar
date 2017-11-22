@@ -241,15 +241,19 @@ class AvailabilityOccurrence(models.Model):
         for slot in surplus_slots:
             slot.disconnect(self)
         # load these all once
-        extant_slots = list(TimeSlot.objects.order_by('start').filter(
+        extant_slots = TimeSlot.objects.order_by('start').filter(
             end__gte=self.start, start__lte=self.end,
-            subject_id=self.subject_id, subject_type=self.subject_type))
+            subject_id=self.subject_id, subject_type=self.subject_type)
         booked_slots = (
             slot for slot in extant_slots if slot.bookings.exists())
         cursor = self.start
         for booked_slot in booked_slots:
             self._maybe_join_slots(extant_slots,
                                    cursor, booked_slot.start)
+            # reload slots, since they may have been deleted
+            extant_slots = TimeSlot.objects.order_by('start').filter(
+                end__gte=self.start, start__lte=self.end,
+                subject_id=self.subject_id, subject_type=self.subject_type)
             cursor = booked_slot.end
         # handle remaining time
         self._maybe_join_slots(extant_slots, cursor, self.end)

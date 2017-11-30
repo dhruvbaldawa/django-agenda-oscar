@@ -14,7 +14,7 @@ def read(fname):
 
 setup(
     name='django-agenda',
-    version='0.2.2',
+    version='0.3',
     description='A scheduling app for Django.',
     long_description=read('README.rst'),
     author='Alan Trick',

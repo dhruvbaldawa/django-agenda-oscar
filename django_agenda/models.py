@@ -559,7 +559,7 @@ class AbstractBooking(models.Model):
         # something like this
         slot.bookings.remove(self)
 
-    def get_reserved_times(self):
+    def get_reserved_spans(self):
         '''
         Return a list of times that should be reserved
         '''

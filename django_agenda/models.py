@@ -1,4 +1,4 @@
-'''
+"""
 Scheduling models
 
 There are three levels of scheduling:
@@ -20,9 +20,9 @@ Important Notes:
 
 Each of these models has a generic relation to an "owner". An owner can be anything:
 a user, a group, a locations. Whatever the owner is, that is the thing that
-'''
+"""
 
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, time
 from typing import List, Tuple
 
 from django.conf import settings
@@ -30,7 +30,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
-import django.utils
+import django.utils.timezone
 from django.utils.dateformat import DateFormat, TimeFormat
 from django.utils.translation import ugettext_lazy as _
 import pytz
@@ -39,19 +39,21 @@ from timezone_field import TimeZoneField
 
 
 class Availability(models.Model):
-    '''
+    """
     Represents a (possibly) recurring available time.
 
     These availabilities are used to generate time slots.
-    '''
+    """
 
     class Meta:
         verbose_name_plural = _('availabilities')
         default_permissions = ()
 
-    start_date = models.DateField()
-    start_time = models.TimeField()
-    end_time = models.TimeField()
+    objects = models.Manager()
+
+    start_date = models.DateField()  # type: date
+    start_time = models.TimeField()  # type: time
+    end_time = models.TimeField()  # type: time
     recurrence = RecurrenceField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -65,18 +67,24 @@ class Availability(models.Model):
 
     subject = GenericForeignKey('subject_type', 'subject_id')
 
+    # reverse relations
+    # @property
+    # def occurrences(self) -> models.QuerySet['AvailabilityOccurrence']:
+    #     return AvailabilityOccurrence.objects.filter(availability=self)
+
+    # regular properties
     @property
-    def start_localized(self):
+    def start_localized(self) -> datetime:
         return self.timezone_localize(
             datetime.combine(self.start_date, self.start_time))
 
     @property
-    def end_localized(self):
+    def end_localized(self) -> datetime:
         return self.timezone_localize(
-            datetime.combine(self.start_date, self.end))
+            datetime.combine(self.start_date, self.end_time))
 
     @property
-    def duration(self):
+    def duration(self) -> timedelta:
         return (datetime.combine(date(1, 1, 1), self.end_time)
                 - datetime.combine(date(1, 1, 1), self.start_time))
 
@@ -90,8 +98,8 @@ class Availability(models.Model):
         duration = self.duration
         starts = self.recurrence.between(
             start, end, inc=True, dtstart=self.start_localized)
-        for time in starts:
-            yield time, time + duration
+        for start_time in starts:
+            yield start_time, start_time + duration
 
     def __str__(self):
         result = '{0}-{1}'.format(
@@ -106,14 +114,13 @@ class Availability(models.Model):
         return result
 
     def recreate_occurrences(self, start: datetime, end: datetime):
-        '''
+        """
         Recreate all availability occurrences between start and end
 
         This is intended to be used when an availability get saved.
-        '''
+        """
         # get all the original ones
         all_slots = self.occurrences.all()
-        duration = self.duration
         # note, we can have multiple occurrences at the same start time
         occurrence_dict = {}
         for occurrence in all_slots:
@@ -140,7 +147,7 @@ class Availability(models.Model):
 
 
 class AvailabilityOccurrence(models.Model):
-    '''
+    """
     A specific instance of an availability
 
     This data is an implementation detail and it's used to speed
@@ -149,12 +156,14 @@ class AvailabilityOccurrence(models.Model):
 
     An AvailabilityOccurrence has a start, end, and availability.
     The start and end should be in UTC
-    '''
+    """
 
     class Meta:
         verbose_name = _('availability occurrence')
         verbose_name_plural = _('availability occurrences')
         default_permissions = ()
+
+    objects = models.Manager()
 
     start = models.DateTimeField()
     end = models.DateTimeField()
@@ -168,6 +177,12 @@ class AvailabilityOccurrence(models.Model):
 
     subject = GenericForeignKey('subject_type', 'subject_id')
 
+    # reverse relations
+    @property
+    def time_slots(self) -> models.QuerySet['TimeSlot']:
+        return TimeSlot.objects.filter(availability_occurences__in=self)
+
+    # regular properties
     def __str__(self):
         if self.start.date() == self.end.date():
             return '{0} {1}-{2}'.format(
@@ -182,16 +197,16 @@ class AvailabilityOccurrence(models.Model):
         )
 
     def predelete(self):
-        '''
+        """
         Stuff to do before you delete an availability occurrence
-        '''
+        """
         time_slots = self.time_slots.all()
         for slot in time_slots:
             slot.disconnect(self)
 
-    def _join_slots(self, slots: 'TimeSlot',
+    def _join_slots(self, slots: List['TimeSlot'],
                     start: datetime, end: datetime):
-        '''
+        """
         A little helper method that only makes sense here
 
         Creates a slot between start and end, joining the related
@@ -199,7 +214,7 @@ class AvailabilityOccurrence(models.Model):
         the old slots
 
         Note: start >= occurrence.start and end <= occurrence.end (unless it's not)
-        '''
+        """
         for slot in slots:
             if slot.start < start:
                 start = slot.start
@@ -228,12 +243,13 @@ class AvailabilityOccurrence(models.Model):
             self._join_slots(current_slots, start, end)
 
     def regen(self):
-        '''Stuff to do after you create an availability occurrence
+        """
+        Stuff to do after you create an availability occurrence
 
         Look through the existing time slots and either add this on
         to an existing one, create an new slot, or do nothing if a
         booking is in the way.
-        '''
+        """
         # delete surplus time slots
         surplus_slots = TimeSlot.objects.filter(
             availability_occurrences__in=[self],
@@ -260,18 +276,20 @@ class AvailabilityOccurrence(models.Model):
 
 
 class TimeSlot(models.Model):
-    '''
+    """
     A segment of time that can be scheduled.
 
     Time slots are non-recurring and their times are always stored in UTC.
-    '''
+    """
 
     class Meta:
         verbose_name_plural = "time slots"
         default_permissions = ()
 
-    start = models.DateTimeField()
-    end = models.DateTimeField()
+    objects = models.Manager()
+
+    start = models.DateTimeField()  # type: datetime
+    end = models.DateTimeField()  # type: datetime
     busy = models.BooleanField(default=False)
 
     subject_type = models.ForeignKey(
@@ -306,7 +324,7 @@ class TimeSlot(models.Model):
         )
 
     def disconnect(self, occurrence: AvailabilityOccurrence):
-        '''
+        """
         Called when an availability occurrence isn't in the same time
         as a time slot, either because it was deleted or moved.
 
@@ -314,7 +332,7 @@ class TimeSlot(models.Model):
         we remove the availability occurrence and resize the slot,
         since it might not be as large anymore. Otherwise we delete
         the slot.
-        '''
+        """
         self.availability_occurrences.remove(occurrence)
         if self.availability_occurrences.exists():
             # probably not the most efficient, but it works
@@ -326,18 +344,24 @@ class TimeSlot(models.Model):
             self.delete()
 
     def bookable(self, start: datetime, end: datetime) -> bool:
-        '''
+        """
         Check if a slot can fit a booking inside of it.
 
         The start and end of the booking are specified by `start` and `end`.
         If the slot is already booked, the start and end must line up exactly
         (so that the slot is not split), otherwise the start and end have to
         fit inside the slots start and end.
-        '''
+        """
         if self.start == start and self.end == end:
             return True
         return (self.start <= start and self.end >= end and
                 not self.bookings.exists())
+
+    def is_booked(self) -> bool:
+        """
+        Returns true if the slot is booked
+        """
+        raise NotImplementedError
 
     @property
     def available(self):
@@ -349,16 +373,16 @@ class TimeSlot(models.Model):
 
 
 class InvalidState(Exception):
-    '''
+    """
     Exception for the booking being set in an invalid state.
-    '''
+    """
     pass
 
 
 class InvalidTime(InvalidState):
-    '''
+    """
     Exception for booking requests/confirmations at invalid times
-    '''
+    """
 
 
 class TimeUnavailableError(ValidationError):
@@ -412,10 +436,10 @@ class AbstractBooking(models.Model):
         return 'Booking'
 
     def slot_diff(self):
-        '''
+        """
         Return the difference between the existing time slots and the ones
         suggested by the current times & state
-        '''
+        """
         slot_times = dict()
         add_times = []
         if self.pk is not None:
@@ -430,8 +454,8 @@ class AbstractBooking(models.Model):
         return add_times, list(slot_times.values())
 
     def clear_slots(self, slots):
-        '''
-        '''
+        """
+        """
         changed_times = []
         for slot in slots:
             self._disconnect_slot(slot)
@@ -458,7 +482,7 @@ class AbstractBooking(models.Model):
                     'Requested time is busy')
             # now all the slots are free
             free_slot = next(
-                (x for x in all_slots if x.bookable(start, end)), None)
+                (x for x in all_slots if self.slot_bookable(slot, start, end)), None)
             if free_slot is not None:
                 yield free_slot, start, end
             else:
@@ -537,43 +561,64 @@ class AbstractBooking(models.Model):
             self._add_slots([slot for slot, start, end in add_slots])
         # end transaction
 
-    def _is_booked_slot_busy(self, slot):
+    def _is_booked_slot_busy(self, _1: TimeSlot):
         return self.subject.allow_multiple_bookings
 
     def _book_unscheduled(self):
-        '''
+        """
         If this returns true, bookings will automatically create slots in
         unscheduled space.
-        '''
+        """
         return False
 
     def _add_slots(self, slots: List[TimeSlot]):
-        '''
+        """
         Add the time slots into the `time_slots` relation
 
         This should save the related date without calling Booking.save
-        '''
+        """
         raise NotImplementedError
 
     def _disconnect_slot(self, slot: TimeSlot):
-        # something like this
-        slot.bookings.remove(self)
+        """
+        Used before a slot is going to be deleted.
+
+        This needs to disconnect any booking objects and other relations that don't automatically get disconnected.
+        """
+        raise NotImplementedError
 
     def get_reserved_spans(self):
-        '''
+        """
         Return a list of times that should be reserved
-        '''
+        """
+        raise NotImplementedError
+
+    def slot_bookable(self, slot: TimeSlot, start: datetime, end: datetime) -> bool:
+        """
+        Check if a slot can fit a booking inside of it.
+
+        The start and end of the booking are specified by `start` and `end`.
+        If the slot is already booked, the start and end must line up exactly
+        (so that the slot is not split), otherwise the start and end have to
+        fit inside the slots start and end.
+        """
+        raise NotImplementedError
+
+    def is_booked(self, slot: TimeSlot) -> bool:
+        """
+        Returns true if the slot is booked
+        """
         raise NotImplementedError
 
     # state change methods
     def cancel(self):
-        '''
+        """
         Cancel a booking
 
         In order to cancel a booking it must be either in the unconfirmed
         or confirmed state. Bookings in other states have no need to be
         canceled.
-        '''
+        """
         if self.state == AbstractBooking.STATE_UNCONFIRMED:
             self.state = AbstractBooking.STATE_DECLINED
         elif self.state == AbstractBooking.STATE_CONFIRMED:
@@ -583,15 +628,15 @@ class AbstractBooking(models.Model):
                 'Only unconfirmed & unconfirmed bookings can be canceled')
         self.state = AbstractBooking.STATE_CANCELED
 
-    def confirm(self, time: datetime):
+    def confirm(self, when: datetime):
         self.state = AbstractBooking.STATE_CONFIRMED
 
 
 def recreate_time_slots(start=None, end=None):
-    '''Remove all the time slots and start from scratch
+    """Remove all the time slots and start from scratch
 
     New time slots are created between start & end inclusive
-    '''
+    """
     if start is None:
         start = django.utils.timezone.now()
     if end is None:
@@ -599,3 +644,4 @@ def recreate_time_slots(start=None, end=None):
 
     for availability in Availability.objects.all():
         availability.recreate_occurrences(start, end)
+

@@ -1,11 +1,12 @@
 from datetime import datetime, time, date
 from django.contrib.auth.models import User
-
+from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
+
 import pytz
 
 from django_agenda.models import (Availability, AvailabilityOccurrence,
-                                  TimeUnavailableError, recreate_time_slots)
+                                  recreate_time_slots)
 import django_agenda.signals
 
 
@@ -30,7 +31,7 @@ class OccurrenceUnitTests(TestCase):
             start_time=time(8),
             end_time=time(15),
             recurrence='RRULE:FREQ=WEEKLY',
-            subject=host,
+            subject=self.host,
             timezone=timezone,
         )
         Availability.objects.create(
@@ -38,7 +39,7 @@ class OccurrenceUnitTests(TestCase):
             start_time=time(8),
             end_time=time(15),
             recurrence='',
-            subject=host,
+            subject=self.host,
             timezone=timezone,
         )
         start = timezone.localize(datetime(2001, 3, 4))

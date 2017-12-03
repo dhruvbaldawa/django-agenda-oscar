@@ -7,7 +7,7 @@ from django.utils import timezone
 from django_agenda import models
 
 
-def update_time_slots(sender, instance, created, raw, **kwargs):
+def update_time_slots(sender, instance, _1, raw, **_2):
     if raw:
         return
     assert sender == models.Availability
@@ -20,7 +20,7 @@ def update_time_slots(sender, instance, created, raw, **kwargs):
         return
 
 
-def save_occurrence(sender, instance, created, raw, **kwargs):
+def save_occurrence(sender, instance, created, raw, **_1):
     assert sender == models.AvailabilityOccurrence
     if created and not raw:
         try:
@@ -29,7 +29,7 @@ def save_occurrence(sender, instance, created, raw, **kwargs):
             return
 
 
-def delete_occurrence(sender, instance, *args, **kwargs):
+def delete_occurrence(sender, instance, *_1, **_2):
     assert sender == models.AvailabilityOccurrence
     instance.predelete()
 

@@ -54,10 +54,10 @@ def run_tests():
 
     # Now we instantiate a test runner...
     from django.test.utils import get_runner
-    TestRunner = get_runner(settings)
+    test_runner_class = get_runner(settings)
 
     # And then we run tests and return the results.
-    test_runner = TestRunner(verbosity=2, interactive=True)
+    test_runner = test_runner_class(verbosity=2, interactive=True)
     failures = test_runner.run_tests(['django_agenda.tests'])
     sys.exit(bool(failures))
 

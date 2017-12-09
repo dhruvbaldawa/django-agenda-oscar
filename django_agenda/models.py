@@ -67,11 +67,6 @@ class Availability(models.Model):
 
     subject = GenericForeignKey('subject_type', 'subject_id')
 
-    # reverse relations
-    # @property
-    # def occurrences(self) -> models.QuerySet['AvailabilityOccurrence']:
-    #     return AvailabilityOccurrence.objects.filter(availability=self)
-
     # regular properties
     @property
     def start_localized(self) -> datetime:
@@ -176,11 +171,6 @@ class AvailabilityOccurrence(models.Model):
     subject_id = models.PositiveIntegerField(verbose_name=_('subject'))
 
     subject = GenericForeignKey('subject_type', 'subject_id')
-
-    # reverse relations
-    @property
-    def time_slots(self) -> models.QuerySet['TimeSlot']:
-        return TimeSlot.objects.filter(availability_occurences__in=self)
 
     # regular properties
     def __str__(self):
@@ -482,7 +472,7 @@ class AbstractBooking(models.Model):
                     'Requested time is busy')
             # now all the slots are free
             free_slot = next(
-                (x for x in all_slots if self.slot_bookable(slot, start, end)), None)
+                (x for x in all_slots if self.slot_bookable(x, start, end)), None)
             if free_slot is not None:
                 yield free_slot, start, end
             else:

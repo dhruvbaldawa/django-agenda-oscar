@@ -7,7 +7,7 @@ from django.utils import timezone
 from django_agenda import models
 
 
-def update_time_slots(sender, instance, _1, raw, **_2):
+def update_time_slots(sender, instance, created, raw, **_2):
     if raw:
         return
     assert sender == models.Availability

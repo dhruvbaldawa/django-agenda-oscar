@@ -1,9 +1,9 @@
-================
-Django Schedule
-================
+=============
+Django Agenda
+=============
 
 
-Django schedule is a django app that allow you to create and book
+Django agenda is a django app that allow you to create and book
 times in a schedule. Our goal is to handle all the nasty details for
 you; like timezones, schedule changes, and whether or not a
 specific segment is actually available to be booked.

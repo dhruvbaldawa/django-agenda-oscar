@@ -495,7 +495,8 @@ class AbstractBooking(models.Model):
                 slot = TimeSlot.objects.create(
                     start=start, end=end,
                     subject_type=self.subject_type,
-                    subject_id=self.subject_id)
+                    subject_id=self.subject_id,
+                    busy=(end - start < AbstractBooking.DURATION))
                 yield slot, start, end
 
     def save(self, *args, **kwargs):

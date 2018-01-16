@@ -14,7 +14,7 @@ def read(fname):
 
 setup(
     name='django-agenda',
-    version='0.3.1',
+    version='0.3.2',
     description='A scheduling app for Django.',
     long_description=read('README.rst'),
     author='Alan Trick',
@@ -23,6 +23,7 @@ setup(
     packages=[
         'django_agenda',
         'django_agenda.migrations',
+        'django_agenda.management.commands',
     ],
     include_package_data=True,
     zip_safe=False,  # everyone hates eggs

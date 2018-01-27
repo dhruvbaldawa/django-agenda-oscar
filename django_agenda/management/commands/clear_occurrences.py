@@ -7,6 +7,6 @@ class Command(BaseCommand):
     help = 'Deletes all the availability occurrences'
 
     def handle(self, *args, **options):
-        for occurence in AvailabilityOccurrence.objects.all():
-            occurence.predelete()
-            occurence.delete()
+        for occurrence in AvailabilityOccurrence.objects.all():
+            occurrence.predelete()
+            occurrence.delete()

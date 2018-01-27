@@ -227,7 +227,7 @@ class AvailabilityOccurrence(models.Model):
     def _maybe_join_slots(self, extant_slots, start, end):
         if start < end:
             current_slots = [slot for slot in extant_slots
-                             if (not slot.bookings.exists() and
+                             if (not slot.is_booked() and
                                  slot.start <= end and
                                  slot.end >= start)]
             self._join_slots(current_slots, start, end)
@@ -345,13 +345,13 @@ class TimeSlot(models.Model):
         if self.start == start and self.end == end:
             return True
         return (self.start <= start and self.end >= end and
-                not self.bookings.exists())
+                not self.is_booked())
 
     def is_booked(self) -> bool:
         """
         Returns true if the slot is booked
         """
-        raise NotImplementedError
+        return self.bookings.exists()
 
     @property
     def available(self):
@@ -449,7 +449,7 @@ class AbstractBooking(models.Model):
         changed_times = []
         for slot in slots:
             self._disconnect_slot(slot)
-            if not slot.bookings.exists():
+            if not slot.is_booked():
                 slot.delete()
                 changed_times.append((slot.start, slot.end))
         for start, end in changed_times:

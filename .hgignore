@@ -5,3 +5,4 @@ syntax: glob
 .settings
 dist
 *.egg-info
+.idea

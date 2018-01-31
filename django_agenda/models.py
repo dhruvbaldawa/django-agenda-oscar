@@ -28,7 +28,7 @@ from typing import List, Tuple
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
-from django.core.exceptions import ValidationError
+import django.core.exceptions
 from django.db import models, transaction
 import django.utils.timezone
 from django.utils.dateformat import DateFormat, TimeFormat
@@ -362,7 +362,7 @@ class TimeSlot(models.Model):
         self.busy = not value
 
 
-class InvalidState(Exception):
+class InvalidState(django.core.exceptions.ValidationError):
     """
     Exception for the booking being set in an invalid state.
     """
@@ -375,7 +375,7 @@ class InvalidTime(InvalidState):
     """
 
 
-class TimeUnavailableError(ValidationError):
+class TimeUnavailableError(InvalidTime):
     pass
 
 

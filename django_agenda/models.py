@@ -465,7 +465,8 @@ class AbstractBooking(models.Model):
             # get all slots that have some space in this span
             # all of these should be
             all_slots = self.subject.time_slots.filter(
-                start__lt=end, end__gt=start).all()
+                start__lt=end, end__gt=start
+            ).prefetch_related('availability_occurrences').all()
             if any(s.busy for s in all_slots):
                 # this for sure blocks us
                 raise TimeUnavailableError(

@@ -436,10 +436,12 @@ class AbstractBooking(models.Model):
             for slot in self.time_slots.all():
                 slot_times[(slot.start, slot.end)] = slot
         for start, end in self.get_reserved_spans():
-            if (start, end) in slot_times.keys():
-                del slot_times[(start, end)]
+            start_utc = start.astimezone(pytz.utc)
+            end_utc = end.astimezone(pytz.utc)
+            if (start_utc, end_utc) in slot_times.keys():
+                del slot_times[(start_utc, end_utc)]
             else:
-                add_times.append((start, end))
+                add_times.append((start_utc, end_utc))
 
         return add_times, list(slot_times.values())
 

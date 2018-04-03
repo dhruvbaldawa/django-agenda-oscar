@@ -482,7 +482,7 @@ class AbstractBooking(models.Model):
                 if not self._book_unscheduled():
                     raise TimeUnavailableError(
                         'Requested time is unavailable')
-                if any(s.bookings.exist() for s in all_slots):
+                if any(s.bookings.exists() for s in all_slots):
                     raise TimeUnavailableError(
                         'Part of requested time is booked')
                 # all these slots can be pushed around

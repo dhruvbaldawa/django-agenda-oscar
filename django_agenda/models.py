@@ -160,8 +160,8 @@ class AvailabilityOccurrence(models.Model):
 
     objects = models.Manager()
 
-    start = models.DateTimeField()
-    end = models.DateTimeField()
+    start = models.DateTimeField(db_index=True)
+    end = models.DateTimeField(db_index=True)
     availability = models.ForeignKey(
         Availability, blank=True, related_name='occurrences')
     subject_type = models.ForeignKey(
@@ -278,9 +278,9 @@ class TimeSlot(models.Model):
 
     objects = models.Manager()
 
-    start = models.DateTimeField()  # type: datetime
-    end = models.DateTimeField()  # type: datetime
-    busy = models.BooleanField(default=False)
+    start = models.DateTimeField(db_index=True)  # type: datetime
+    end = models.DateTimeField(db_index=True)  # type: datetime
+    busy = models.BooleanField(default=False, db_index=True)
 
     subject_type = models.ForeignKey(
         ContentType,
@@ -413,7 +413,8 @@ class AbstractBooking(models.Model):
                        STATE_MISSED)
 
     state = models.CharField(
-        choices=STATES, max_length=3, default=STATE_UNCONFIRMED)
+        max_length=3, db_index=True,
+        choices=STATES, default=STATE_UNCONFIRMED)
 
     subject_type = models.ForeignKey(
         ContentType,

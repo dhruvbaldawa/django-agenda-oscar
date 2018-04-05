@@ -20,7 +20,9 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='Availability',
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', models.AutoField(
+                    auto_created=True, primary_key=True,
+                    serialize=False, verbose_name='ID')),
                 ('start_date', models.DateField()),
                 ('start_time', models.TimeField()),
                 ('end_time', models.TimeField()),
@@ -28,9 +30,11 @@ class Migration(migrations.Migration):
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
                 ('timezone', timezone_field.fields.TimeZoneField()),
-                ('subject_id', models.PositiveIntegerField(verbose_name='subject')),
-                ('subject_type', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE,
-                                                   to='contenttypes.ContentType', verbose_name='subject type')),
+                ('subject_id', models.PositiveIntegerField(
+                    verbose_name='subject')),
+                ('subject_type', models.ForeignKey(
+                    on_delete=django.db.models.deletion.CASCADE,
+                    to='contenttypes.ContentType', verbose_name='subject type')),
             ],
             options={
                 'default_permissions': (),
@@ -40,14 +44,19 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='AvailabilityOccurrence',
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', models.AutoField(
+                    auto_created=True, primary_key=True,
+                    serialize=False, verbose_name='ID')),
                 ('start', models.DateTimeField()),
                 ('end', models.DateTimeField()),
-                ('subject_id', models.PositiveIntegerField(verbose_name='subject')),
-                ('availability', models.ForeignKey(blank=True, on_delete=django.db.models.deletion.CASCADE,
-                                                   related_name='occurrences', to='django_agenda.Availability')),
-                ('subject_type', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE,
-                                                   to='contenttypes.ContentType', verbose_name='subject type')),
+                ('subject_id', models.PositiveIntegerField(
+                    verbose_name='subject')),
+                ('availability', models.ForeignKey(
+                    blank=True, on_delete=django.db.models.deletion.CASCADE,
+                    related_name='occurrences', to='django_agenda.Availability')),
+                ('subject_type', models.ForeignKey(
+                    on_delete=django.db.models.deletion.CASCADE,
+                    to='contenttypes.ContentType', verbose_name='subject type')),
             ],
             options={
                 'default_permissions': (),
@@ -58,19 +67,26 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='TimeSlot',
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', models.AutoField(
+                    auto_created=True, primary_key=True,
+                    serialize=False, verbose_name='ID')),
                 ('start', models.DateTimeField()),
                 ('end', models.DateTimeField()),
                 ('busy', models.BooleanField(default=False)),
-                ('subject_id', models.PositiveIntegerField(verbose_name='subject')),
+                ('subject_id', models.PositiveIntegerField(
+                    verbose_name='subject')),
                 ('availability_occurrences', models.ManyToManyField(
-                    blank=True, related_name='time_slots', to='django_agenda.AvailabilityOccurrence')),
-                ('slot_after', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL,
-                                                 related_name='+', to='django_agenda.TimeSlot')),
-                ('slot_before', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL,
-                                                  related_name='+', to='django_agenda.TimeSlot')),
-                ('subject_type', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE,
-                                                   to='contenttypes.ContentType', verbose_name='subject type')),
+                    blank=True, related_name='time_slots',
+                    to='django_agenda.AvailabilityOccurrence')),
+                ('slot_after', models.ForeignKey(
+                    blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL,
+                    related_name='+', to='django_agenda.TimeSlot')),
+                ('slot_before', models.ForeignKey(
+                    blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL,
+                    related_name='+', to='django_agenda.TimeSlot')),
+                ('subject_type', models.ForeignKey(
+                    on_delete=django.db.models.deletion.CASCADE,
+                    to='contenttypes.ContentType', verbose_name='subject type')),
             ],
             options={
                 'default_permissions': (),

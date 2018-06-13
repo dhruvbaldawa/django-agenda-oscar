@@ -14,10 +14,6 @@ def create_host():
     return User.objects.create(email='host@example.org', username="host")
 
 
-def create_booker():
-    return User.objects.create(email='booker@example.org', username='booker')
-
-
 class OccurrenceUnitTests(TestCase):
 
     def setUp(self):

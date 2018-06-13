@@ -469,7 +469,9 @@ class AbstractBooking(models.Model):
         for start, end in spans:
             # get all slots that have some space in this span
             # all of these should be
-            all_slots = self.subject.time_slots.filter(
+            subject_ct = ContentType.objects.get_for_model(type(self.subject))
+            all_slots = TimeSlot.objects.filter(
+                subject_id=self.subject_id, subject_type=subject_ct,
                 start__lt=end, end__gt=start
             ).prefetch_related('availability_occurrences').all()
             if any(s.busy for s in all_slots):
@@ -527,8 +529,8 @@ class AbstractBooking(models.Model):
                         busy=(start - original_start <
                               AbstractBooking.DURATION)
                     )
-                    pre_slot.availability_occurrences = \
-                        slot.availability_occurrences.all()
+                    pre_slot.availability_occurrences.set(
+                        slot.availability_occurrences.all())
                     slot.start = start
                     slot.slot_before = pre_slot
                     pre_slot.save()
@@ -546,8 +548,8 @@ class AbstractBooking(models.Model):
                         busy=(original_end - end <
                               AbstractBooking.DURATION)
                     )
-                    post_slot.availability_occurrences = \
-                        slot.availability_occurrences.all()
+                    post_slot.availability_occurrences.set(
+                        slot.availability_occurrences.all())
                     slot.end = end
                     slot.slot_after = post_slot
                     post_slot.save()
@@ -555,6 +557,7 @@ class AbstractBooking(models.Model):
 
                 slot.availability_occurrences.clear()
                 slot.busy = not self._is_booked_slot_busy(slot)
+                slot.save()
 
             super().save(*args, **kwargs)
 

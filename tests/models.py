@@ -46,6 +46,10 @@ class Booking(AbstractBooking):
         self.loading = False
         self.__editor = None
         self.__super_editor = False
+        self.allow_multiple_bookings = False
+
+    def _is_booked_slot_busy(self, _1: TimeSlot):
+        return self.allow_multiple_bookings
 
     def get_requested_times(self):
         for time in (self.requested_time_1, self.requested_time_2):
@@ -58,8 +62,7 @@ class Booking(AbstractBooking):
         """
         if self.state in self.RESERVED_STATES:
             for time in self.get_requested_times():
-                if time > django.utils.timezone.now():
-                    yield (time, time + AbstractBooking.DURATION)
+                yield (time, time + AbstractBooking.DURATION)
 
     # state change methods
     def cancel(self):
@@ -144,10 +147,10 @@ class Booking(AbstractBooking):
         self.requested_time_1 = new_times[0]
         if len(new_times) > 1:
             self.requested_time_2 = new_times[1]
-        if self.__editor == self.booker:
-            self.assignee = self.subject.host
+        if self.__editor == self.guest:
+            self.assignee = self.host
         else:
-            self.assignee = self.booker
+            self.assignee = self.guest
 
     def _add_slots(self, slots: List[TimeSlot]):
         for slot in slots:
@@ -161,7 +164,7 @@ class Booking(AbstractBooking):
         If this returns true, bookings will automatically create slots in
         unscheduled space.
         """
-        return self.__super_editor or self.__editor == self.subject.host
+        return self.__super_editor or self.__editor == self.subject
 
     def slot_bookable(
             self, slot: TimeSlot, start: datetime, end: datetime) -> bool:

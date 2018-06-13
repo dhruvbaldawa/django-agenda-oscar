@@ -28,6 +28,7 @@ BASE_INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+    'recurrence',
     'django_agenda',
 ]
 

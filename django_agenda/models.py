@@ -18,22 +18,23 @@ represent what is actually scheduled to happen.
 
 Important Notes:
 
-Each of these models has a generic relation to an "owner". An owner can be anything:
-a user, a group, a locations. Whatever the owner is, that is the thing that
+Each of these models has a generic relation to an "owner".
+An owner can be anything: a user, a group, a locations.
+Whatever the owner is, that is the thing that
 """
 
-from datetime import datetime, date, timedelta, time
+from datetime import date, datetime, timedelta
 from typing import List, Tuple
 
+import django.core.exceptions
+import django.utils.timezone
+import pytz
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
-import django.core.exceptions
 from django.db import models, transaction
-import django.utils.timezone
 from django.utils.dateformat import DateFormat, TimeFormat
 from django.utils.translation import ugettext_lazy as _
-import pytz
 from recurrence.fields import RecurrenceField
 from timezone_field import TimeZoneField
 
@@ -52,8 +53,8 @@ class Availability(models.Model):
     objects = models.Manager()
 
     start_date = models.DateField()  # type: date
-    start_time = models.TimeField()  # type: time
-    end_time = models.TimeField()  # type: time
+    start_time = models.TimeField()  # type: datetime.time
+    end_time = models.TimeField()  # type: datetime.time
     recurrence = RecurrenceField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -169,7 +170,6 @@ class AvailabilityOccurrence(models.Model):
         verbose_name=_('subject type'),
     )
     subject_id = models.PositiveIntegerField(verbose_name=_('subject'))
-
     subject = GenericForeignKey('subject_type', 'subject_id')
 
     # regular properties
@@ -203,7 +203,8 @@ class AvailabilityOccurrence(models.Model):
         availability occurrences + `occurrence`, and deleting
         the old slots
 
-        Note: start >= occurrence.start and end <= occurrence.end (unless it's not)
+        Note: start >= occurrence.start and end <= occurrence.end
+        (unless it's not)
         """
         for slot in slots:
             if slot.start < start:
@@ -476,7 +477,8 @@ class AbstractBooking(models.Model):
                     'Requested time is busy')
             # now all the slots are free
             free_slot = next(
-                (x for x in all_slots if self.slot_bookable(x, start, end)), None)
+                (x for x in all_slots if
+                 self.slot_bookable(x, start, end)), None)
             if free_slot is not None:
                 yield free_slot, start, end
             else:
@@ -524,7 +526,8 @@ class AbstractBooking(models.Model):
                         busy=(start - original_start <
                               AbstractBooking.DURATION)
                     )
-                    pre_slot.availability_occurrences = slot.availability_occurrences.all()
+                    pre_slot.availability_occurrences = \
+                        slot.availability_occurrences.all()
                     slot.start = start
                     slot.slot_before = pre_slot
                     pre_slot.save()
@@ -542,7 +545,8 @@ class AbstractBooking(models.Model):
                         busy=(original_end - end <
                               AbstractBooking.DURATION)
                     )
-                    post_slot.availability_occurrences = slot.availability_occurrences.all()
+                    post_slot.availability_occurrences = \
+                        slot.availability_occurrences.all()
                     slot.end = end
                     slot.slot_after = post_slot
                     post_slot.save()
@@ -578,7 +582,8 @@ class AbstractBooking(models.Model):
         """
         Used before a slot is going to be deleted.
 
-        This needs to disconnect any booking objects and other relations that don't automatically get disconnected.
+        This needs to disconnect any booking objects and other relations
+        that don't automatically get disconnected.
         """
         raise NotImplementedError
 
@@ -588,7 +593,8 @@ class AbstractBooking(models.Model):
         """
         raise NotImplementedError
 
-    def slot_bookable(self, slot: TimeSlot, start: datetime, end: datetime) -> bool:
+    def slot_bookable(
+            self, slot: TimeSlot, start: datetime, end: datetime) -> bool:
         """
         Check if a slot can fit a booking inside of it.
 
@@ -639,4 +645,3 @@ def recreate_time_slots(start=None, end=None):
 
     for availability in Availability.objects.all():
         availability.recreate_occurrences(start, end)
-

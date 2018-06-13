@@ -1,13 +1,13 @@
-from datetime import datetime, time, date
+from datetime import date, datetime, time
+
+import pytz
 from django.contrib.auth.models import User
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
-import pytz
-
+import django_agenda.signals
 from django_agenda.models import (Availability, AvailabilityOccurrence,
                                   recreate_time_slots)
-import django_agenda.signals
 
 
 def create_host():
@@ -48,11 +48,11 @@ class OccurrenceUnitTests(TestCase):
 
         user_type = ContentType.objects.get_for_model(User)
         all_slots = AvailabilityOccurrence.objects.filter(
-            content_type__pk=user_type.id, content_id=self.host.id)
+            subject_type__pk=user_type.id, subject_id=self.host.id)
         self.assertEqual(len(all_slots), 3)
         availability1.recurrence = 'RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR'
         availability1.save()
         recreate_time_slots(start, end)
         all_slots = AvailabilityOccurrence.objects.filter(
-            content_type__pk=user_type.id, content_id=self.host.id)
+            subject_type__pk=user_type.id, subject_id=self.host.id)
         self.assertEqual(len(all_slots), 6)

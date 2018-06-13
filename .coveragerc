@@ -1,0 +1,14 @@
+[run]
+source = django_agenda
+branch = 1
+
+[report]
+omit = *tests*,*migrations*
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    if self.debug:
+    raise AssertionError
+    raise NotImplementedError
+    except LookupError
+    except ImportError

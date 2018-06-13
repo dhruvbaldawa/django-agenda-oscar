@@ -1,0 +1,4 @@
+Django>=1.10,<2.1
+django-recurrence
+django-timezone-field
+pytz

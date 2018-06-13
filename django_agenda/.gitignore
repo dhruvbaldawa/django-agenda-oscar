@@ -1,0 +1,15 @@
+*.pyc
+.project
+.pydevproject
+.pytest_cache
+.settings
+dist
+build
+*.egg-info
+.idea
+.coverage
+.tox
+AUTHORS
+ChangeLog
+coverage.xml
+.eggs

@@ -61,8 +61,8 @@ class Availability(models.Model):
     timezone = TimeZoneField()
 
     subject_type = models.ForeignKey(
-        ContentType,
-        verbose_name=_('subject type'),
+        to=ContentType, verbose_name=_('subject type'),
+        on_delete=models.CASCADE,
     )
     subject_id = models.PositiveIntegerField(verbose_name=_('subject'))
 
@@ -164,10 +164,11 @@ class AvailabilityOccurrence(models.Model):
     start = models.DateTimeField(db_index=True)
     end = models.DateTimeField(db_index=True)
     availability = models.ForeignKey(
-        Availability, blank=True, related_name='occurrences')
+        on_delete=models.CASCADE, to=Availability, blank=True,
+        related_name='occurrences')
     subject_type = models.ForeignKey(
-        ContentType,
-        verbose_name=_('subject type'),
+        verbose_name=_('subject type'), to=ContentType,
+        on_delete=models.CASCADE,
     )
     subject_id = models.PositiveIntegerField(verbose_name=_('subject'))
     subject = GenericForeignKey('subject_type', 'subject_id')
@@ -284,7 +285,7 @@ class TimeSlot(models.Model):
     busy = models.BooleanField(default=False, db_index=True)
 
     subject_type = models.ForeignKey(
-        ContentType,
+        on_delete=models.CASCADE, to=ContentType,
         verbose_name=_('subject type'),
     )
     subject_id = models.PositiveIntegerField(verbose_name=_('subject'))
@@ -418,7 +419,7 @@ class AbstractBooking(models.Model):
         choices=STATES, default=STATE_UNCONFIRMED)
 
     subject_type = models.ForeignKey(
-        ContentType,
+        on_delete=models.CASCADE, to=ContentType,
         verbose_name=_('subject type'),
     )
     subject_id = models.PositiveIntegerField(verbose_name=_('subject id'))

@@ -170,17 +170,17 @@ class BookingTests(TestCase):
         )
         extra_booking.save()
         # This should result in 5 time slots:
-        # * 8-9, busy
+        # * 8-9, free
         # * 9-10:30, busy
-        # * 10:30-11, busy
+        # * 10:30-11, free
         # * 11-12:30, busy
         # * 12:30-14:00, free
         slots = TimeSlot.objects.filter(
             subject_id=self.host.id).order_by('start')
         self.assertEqual(len(slots), 5)
-        times = ((time(8), time(9), True),
+        times = ((time(8), time(9), False),
                  (time(9), time(10, 30), True),
-                 (time(10, 30), time(11), True),
+                 (time(10, 30), time(11), False),
                  (time(11), time(12, 30), True),
                  (time(12, 30), time(14), False))
         for idx, (start, end, busy) in enumerate(times):
@@ -192,7 +192,7 @@ class BookingTests(TestCase):
         with extra_booking.set_editor(self.host):
             extra_booking.cancel_with_reason('test slot freeing', '')
         # This should result in 3 time slots:
-        # * 8-9, busy
+        # * 8-9, free
         # * 9-10:30, busy
         # * 10:30-14, free
         slots = TimeSlot.objects.filter(
@@ -215,9 +215,9 @@ class BookingTests(TestCase):
         slots = TimeSlot.objects.filter(
             subject_id=self.host.id).order_by('start')
         self.assertEqual(len(slots), 5)
-        times = ((time(8), time(9), True),
+        times = ((time(8), time(9), False),
                  (time(9), time(10, 30), False),
-                 (time(10, 30), time(11), True),
+                 (time(10, 30), time(11), False),
                  (time(11), time(12, 30), True),
                  (time(12, 30), time(14), False))
         for idx, (start, end, busy) in enumerate(times):

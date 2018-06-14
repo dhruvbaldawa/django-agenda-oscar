@@ -1,5 +1,5 @@
 import contextlib
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List
 
 import django.utils.timezone
@@ -8,10 +8,12 @@ from django.db import models
 from django.utils.translation import ugettext_lazy as _
 
 from django_agenda.models import (AbstractBooking, InvalidState, InvalidTime,
-                                  TimeSlot)
+                                  TimeSlot, TimeSpan)
 
 
 class Booking(AbstractBooking):
+    DURATION = timedelta(minutes=90)
+
     guest = models.ForeignKey(
         verbose_name=_('guest'), to=settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT, related_name='+')
@@ -56,13 +58,13 @@ class Booking(AbstractBooking):
             if time is not None:
                 yield time
 
-    def get_reserved_spans(self):
+    def get_reserved_spans(self) -> List[TimeSpan]:
         """
         Return a list of times that should be reserved
         """
         if self.state in self.RESERVED_STATES:
             for time in self.get_requested_times():
-                yield (time, time + AbstractBooking.DURATION)
+                yield (time, time + self.DURATION)
 
     # state change methods
     def cancel(self):
@@ -166,12 +168,10 @@ class Booking(AbstractBooking):
         """
         return self.__super_editor or self.__editor == self.subject
 
-    def slot_bookable(
-            self, slot: TimeSlot, start: datetime, end: datetime) -> bool:
-        if slot.start == start and slot.end == end:
+    def slot_bookable(self, slot: TimeSlot, span: TimeSpan) -> bool:
+        if slot.time_equals(span):
             return True
-        return (slot.start <= start and slot.end >= end and
-                not slot.bookings.exists())
+        return slot.contains(span) and not slot.bookings.exists()
 
     def is_booked(self, slot: TimeSlot) -> bool:
         return slot.bookings.exists()

@@ -24,7 +24,7 @@ Whatever the owner is, that is the thing that
 """
 
 from datetime import date, datetime, timedelta
-from typing import List, Tuple
+from typing import List
 
 import django.core.exceptions
 import django.utils.timezone
@@ -37,6 +37,55 @@ from django.utils.dateformat import DateFormat, TimeFormat
 from django.utils.translation import ugettext_lazy as _
 from recurrence.fields import RecurrenceField
 from timezone_field import TimeZoneField
+
+
+class AbstractTimeSpan:
+    @property
+    def length(self):
+        return self.end - self.start
+
+    @property
+    def is_real(self):
+        return self.start < self.end
+
+    def __iter__(self):
+        yield self.start
+        yield self.end
+
+    def expanded(self, other):
+        return TimeSpan(min(self.start, other.start),
+                        max(self.end, other.end))
+
+    def time_equals(self, other):
+        return (self.start == other.start
+                and self.end == other.end)
+
+    def contains(self, other):
+        return (other.start >= self.start
+                and other.end <= self.end)
+
+    def connects(self, other):
+        return (other.start <= self.end
+                and other.end >= self.start)
+
+    def __str__(self):
+        if self.start.date() == self.end.date():
+            return '{0} {1}-{2}'.format(
+                DateFormat(self.start).format(settings.DATE_FORMAT),
+                TimeFormat(self.start).format(settings.TIME_FORMAT),
+                TimeFormat(self.end).format(settings.TIME_FORMAT),
+            )
+
+        return '{0}-{1}'.format(
+            DateFormat(self.start).format(settings.DATETIME_FORMAT),
+            DateFormat(self.end).format(settings.DATETIME_FORMAT),
+        )
+
+
+class TimeSpan(AbstractTimeSpan):
+    def __init__(self, start: datetime, end: datetime):
+        self.start = start
+        self.end = end
 
 
 class Availability(models.Model):
@@ -90,10 +139,10 @@ class Availability(models.Model):
             return self.timezone.localize(value)
         return pytz.timezone(self.timezone).localize(value)
 
-    def get_recurrences(self, start, end):
+    def get_recurrences(self, span: TimeSpan):
         duration = self.duration
         starts = self.recurrence.between(
-            start, end, inc=True, dtstart=self.start_localized)
+            span.start, span.end, inc=True, dtstart=self.start_localized)
         for start_time in starts:
             yield start_time, start_time + duration
 
@@ -115,6 +164,7 @@ class Availability(models.Model):
 
         This is intended to be used when an availability get saved.
         """
+        span = TimeSpan(start, end)
         # get all the original ones
         all_slots = self.occurrences.all()
         # note, we can have multiple occurrences at the same start time
@@ -122,7 +172,7 @@ class Availability(models.Model):
         for occurrence in all_slots:
             occurrence_dict[(occurrence.start, occurrence.end)] = occurrence
         # TODO: this matching is really inefficient
-        for r_start, r_end in self.get_recurrences(start, end):
+        for r_start, r_end in self.get_recurrences(span):
             if (r_start, r_end) in occurrence_dict:
                 # yay we matched our occurrence, pop it
                 del occurrence_dict[(r_start, r_end)]
@@ -195,8 +245,7 @@ class AvailabilityOccurrence(models.Model):
         for slot in time_slots:
             slot.disconnect(self)
 
-    def _join_slots(self, slots: List['TimeSlot'],
-                    start: datetime, end: datetime):
+    def _join_slots(self, slots: List['TimeSlot'], span: TimeSpan):
         """
         A little helper method that only makes sense here
 
@@ -208,12 +257,9 @@ class AvailabilityOccurrence(models.Model):
         (unless it's not)
         """
         for slot in slots:
-            if slot.start < start:
-                start = slot.start
-            if slot.end > end:
-                end = slot.end
+            span = span.expanded(slot)
         new_slot = TimeSlot(
-            start=start, end=end,
+            start=span.start, end=span.end,
             subject_id=self.subject_id,
             subject_type=self.subject_type)
         new_slot.save()
@@ -226,13 +272,12 @@ class AvailabilityOccurrence(models.Model):
             slot.delete()
         return new_slot
 
-    def _maybe_join_slots(self, extant_slots, start, end):
-        if start < end:
+    def _maybe_join_slots(self, extant_slots, span: TimeSpan):
+        if span.is_real:
             current_slots = [slot for slot in extant_slots
                              if (not slot.is_booked() and
-                                 slot.start <= end and
-                                 slot.end >= start)]
-            self._join_slots(current_slots, start, end)
+                                 slot.connects(span))]
+            self._join_slots(current_slots, span)
 
     def regen(self):
         """
@@ -254,20 +299,21 @@ class AvailabilityOccurrence(models.Model):
             subject_id=self.subject_id, subject_type=self.subject_type)
         booked_slots = (
             slot for slot in extant_slots if slot.bookings.exists())
-        cursor = self.start
+        span = TimeSpan(self.start, self.start)
         for booked_slot in booked_slots:
-            self._maybe_join_slots(extant_slots,
-                                   cursor, booked_slot.start)
+            span.end = booked_slot.start
+            self._maybe_join_slots(extant_slots, span)
             # reload slots, since they may have been deleted
             extant_slots = TimeSlot.objects.order_by('start').filter(
                 end__gte=self.start, start__lte=self.end,
                 subject_id=self.subject_id, subject_type=self.subject_type)
-            cursor = booked_slot.end
+            span.start = booked_slot.end
         # handle remaining time
-        self._maybe_join_slots(extant_slots, cursor, self.end)
+        span.end = self.end
+        self._maybe_join_slots(extant_slots, span)
 
 
-class TimeSlot(models.Model):
+class TimeSlot(models.Model, AbstractTimeSpan):
     """
     A segment of time that can be scheduled.
 
@@ -302,18 +348,11 @@ class TimeSlot(models.Model):
         'TimeSlot', blank=True, null=True, on_delete=models.SET_NULL,
         related_name='+')
 
-    def __str__(self):
-        if self.start.date() == self.end.date():
-            return '{0} {1}-{2}'.format(
-                DateFormat(self.start).format(settings.DATE_FORMAT),
-                TimeFormat(self.start).format(settings.TIME_FORMAT),
-                TimeFormat(self.end).format(settings.TIME_FORMAT),
-            )
-
-        return '{0}-{1}'.format(
-            DateFormat(self.start).format(settings.DATETIME_FORMAT),
-            DateFormat(self.end).format(settings.DATETIME_FORMAT),
-        )
+    def avoid_span(self, span: TimeSpan):
+        if self.start <= span.end:
+            self.start = span.end
+        if self.end >= span.start:
+            self.end = span.start
 
     def disconnect(self, occurrence: AvailabilityOccurrence):
         """
@@ -355,14 +394,6 @@ class TimeSlot(models.Model):
         """
         return self.bookings.exists()
 
-    @property
-    def available(self):
-        return not self.busy
-
-    @available.setter
-    def available(self, value):
-        self.busy = not value
-
 
 class InvalidState(django.core.exceptions.ValidationError):
     """
@@ -385,8 +416,6 @@ class AbstractBooking(models.Model):
 
     class Meta:
         abstract = True
-
-    DURATION = timedelta(minutes=90)
 
     STATE_UNCONFIRMED = 'UNC'
     # this means it's either scheduled to happen
@@ -444,7 +473,7 @@ class AbstractBooking(models.Model):
             if (start_utc, end_utc) in slot_times.keys():
                 del slot_times[(start_utc, end_utc)]
             else:
-                add_times.append((start_utc, end_utc))
+                add_times.append(TimeSpan(start_utc, end_utc))
 
         return add_times, list(slot_times.values())
 
@@ -456,23 +485,22 @@ class AbstractBooking(models.Model):
             self._disconnect_slot(slot)
             if not slot.is_booked():
                 slot.delete()
-                changed_times.append((slot.start, slot.end))
-        for start, end in changed_times:
+                changed_times.append(slot)
+        for slot in changed_times:
             for occurrence in AvailabilityOccurrence.objects.filter(
                     subject_id=self.subject_id,
                     subject_type=self.subject_type,
-                    start__lte=end, end__gte=start):
+                    start__lte=slot.end, end__gte=slot.start):
                 occurrence.regen()
 
-    def find_slots(self,
-                   spans: List[Tuple[datetime, datetime]]):
-        for start, end in spans:
+    def find_slots(self, spans: List[TimeSpan]):
+        for span in spans:
             # get all slots that have some space in this span
             # all of these should be
             subject_ct = ContentType.objects.get_for_model(type(self.subject))
             all_slots = TimeSlot.objects.filter(
                 subject_id=self.subject_id, subject_type=subject_ct,
-                start__lt=end, end__gt=start
+                start__lt=span.end, end__gt=span.start
             ).prefetch_related('availability_occurrences').all()
             if any(s.busy for s in all_slots):
                 # this for sure blocks us
@@ -481,9 +509,9 @@ class AbstractBooking(models.Model):
             # now all the slots are free
             free_slot = next(
                 (x for x in all_slots if
-                 self.slot_bookable(x, start, end)), None)
+                 self.slot_bookable(x, span)), None)
             if free_slot is not None:
-                yield free_slot, start, end
+                yield free_slot, span
             else:
                 if not self._book_unscheduled():
                     raise TimeUnavailableError(
@@ -493,20 +521,16 @@ class AbstractBooking(models.Model):
                         'Part of requested time is booked')
                 # all these slots can be pushed around
                 for old_slot in all_slots:
-                    if old_slot.start >= start and old_slot.end <= end:
+                    if span.contains(old_slot):
                         old_slot.delete()
                     else:
-                        if old_slot.start <= end:
-                            old_slot.start = end
-                        if old_slot.end >= end:
-                            old_slot.end = end
+                        old_slot.avoid_span(span)
                         old_slot.save()
                 slot = TimeSlot.objects.create(
-                    start=start, end=end,
+                    start=span.start, end=span.end,
                     subject_type=self.subject_type,
-                    subject_id=self.subject_id,
-                    busy=(end - start < AbstractBooking.DURATION))
-                yield slot, start, end
+                    subject_id=self.subject_id)
+                yield slot, slot
 
     def save(self, *args, **kwargs):
         # reserve slots if necessary
@@ -515,42 +539,36 @@ class AbstractBooking(models.Model):
         with transaction.atomic():
             self.clear_slots(rm_slots)
             add_slots = list(self.find_slots(add_times))
-            for slot, start, end in add_slots:
-                if slot.start < start:
+            for slot, span in add_slots:
+                if slot.start < span.start:
                     original_start = slot.start
                     original_slot_before = slot.slot_before
                     pre_slot = TimeSlot.objects.create(
                         start=original_start,
-                        end=start,
+                        end=span.start,
                         subject_id=self.subject_id,
                         subject_type=self.subject_type,
                         slot_before=original_slot_before,
-                        slot_after=slot,
-                        busy=(start - original_start <
-                              AbstractBooking.DURATION)
-                    )
+                        slot_after=slot)
                     pre_slot.availability_occurrences.set(
                         slot.availability_occurrences.all())
-                    slot.start = start
+                    slot.start = span.start
                     slot.slot_before = pre_slot
                     pre_slot.save()
                     assert pre_slot.availability_occurrences.exists()
-                if slot.end > end:
+                if slot.end > span.end:
                     original_end = slot.end
                     original_slot_after = slot.slot_after
                     post_slot = TimeSlot.objects.create(
-                        start=end,
+                        start=span.end,
                         end=original_end,
                         subject_id=self.subject_id,
                         subject_type=self.subject_type,
                         slot_before=slot,
-                        slot_after=original_slot_after,
-                        busy=(original_end - end <
-                              AbstractBooking.DURATION)
-                    )
+                        slot_after=original_slot_after)
                     post_slot.availability_occurrences.set(
                         slot.availability_occurrences.all())
-                    slot.end = end
+                    slot.end = span.end
                     slot.slot_after = post_slot
                     post_slot.save()
                     assert post_slot.availability_occurrences.exists()
@@ -561,7 +579,7 @@ class AbstractBooking(models.Model):
 
             super().save(*args, **kwargs)
 
-            self._add_slots([slot for slot, start, end in add_slots])
+            self._add_slots([slot for slot, span in add_slots])
         # end transaction
 
     def _is_booked_slot_busy(self, _1: TimeSlot):
@@ -591,14 +609,13 @@ class AbstractBooking(models.Model):
         """
         raise NotImplementedError
 
-    def get_reserved_spans(self):
+    def get_reserved_spans(self) -> List[TimeSpan]:
         """
         Return a list of times that should be reserved
         """
         raise NotImplementedError
 
-    def slot_bookable(
-            self, slot: TimeSlot, start: datetime, end: datetime) -> bool:
+    def slot_bookable(self, slot: TimeSlot, span: TimeSpan) -> bool:
         """
         Check if a slot can fit a booking inside of it.
 

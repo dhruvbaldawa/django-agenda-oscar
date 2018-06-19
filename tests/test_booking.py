@@ -54,25 +54,39 @@ class BookingTests(TestCase):
             subject=self.host,
             requested_time_1=self.booking_time,
         )
-        # This should result in 3 time slots:
-        # * 8-11
-        # * 11-12:30
+        # This should result in 5 time slots:
+        # * 8-10:30
+        # * 10:30-11
+        # * 11-12
+        # * 12-12:30
         # * 12:30-14:00
         slots = TimeSlot.objects.filter(
             subject_id=self.host.id).order_by('start')
-        self.assertEqual(len(slots), 3)
-        times = ((time(8), time(11), False),
-                 (time(11), time(12, 30), True),
+        times = ((time(8), time(10, 30), False),
+                 (time(10, 30), time(11), True),
+                 (time(11), time(12), True),
+                 (time(12), time(12, 30), True),
                  (time(12, 30), time(14), False))
-        for idx, (start, end, busy) in enumerate(times):
-            self.assertEqual(start, (slots[idx].start + self.offset).time())
-            self.assertEqual(end, (slots[idx].end + self.offset).time())
-            self.assertEqual(busy, slots[idx].busy)
+        self._check_time_slots(times, slots)
 
         booking_slots = models.BookingTime.objects.all()
         self.assertEqual(len(booking_slots), 1)
         self.assertEqual(
             len(booking_slots[0].time_slot.availability_occurrences.all()), 0)
+
+    def _check_time_slots(self, expected_data, slots):
+        self.assertEqual(
+            len(expected_data), len(slots), 'Incorrect number of slots')
+        for idx, (start, end, busy) in enumerate(expected_data):
+            self.assertEqual(
+                start, (slots[idx].start + self.offset).time(),
+                'Slot {} did not have the right start time'.format(idx))
+            self.assertEqual(
+                end, (slots[idx].end + self.offset).time(),
+                'Slot {} did not have the right end time'.format(idx))
+            self.assertEqual(
+                busy, slots[idx].busy,
+                'Slot {} did not have the right busy state'.format(idx))
 
     def test_create_slots(self):
         """
@@ -94,7 +108,7 @@ class BookingTests(TestCase):
         """
         Make sure availabilities and busy time slots don't kill each other.
 
-        If you create a booking, and then alter the availablity it was in,
+        If you create a booking, and then alter the availability it was in,
         the time slot for the booking should persist. When you cancel a
         booking, the availability should free up.
         """
@@ -107,20 +121,18 @@ class BookingTests(TestCase):
         # and a reserved booking slot from 18-19:30
         slots = TimeSlot.objects.filter(
             subject_id=self.host.id).order_by('start')
-        self.assertEqual(2, len(slots))
-        times = ((time(8), time(11)),
-                 (time(11), time(12, 30)))
-        for idx, (start, end) in enumerate(times):
-            self.assertEqual(start, (slots[idx].start + self.offset).time())
-            self.assertEqual(end, (slots[idx].end + self.offset).time())
+        times = ((time(8), time(10, 30), False),
+                 (time(10, 30), time(11), True),
+                 (time(11), time(12), True),
+                 (time(12), time(12, 30), True))
+        self._check_time_slots(times, slots)
         # make sure the slots free up after the booking is saved
         self.booking.state = models.Booking.STATE_CANCELED
         self.booking.save()
         slots = TimeSlot.objects.filter(
             subject_id=self.host.id).order_by('start')
-        self.assertEqual(1, len(slots))
-        self.assertEqual(time(8), (slots[0].start + self.offset).time())
-        self.assertEqual(time(12), (slots[0].end + self.offset).time())
+        times = ((time(8), time(12), False),)
+        self._check_time_slots(times, slots)
 
     def test_add_overlapping_booking(self):
         """
@@ -142,19 +154,21 @@ class BookingTests(TestCase):
             self.booking.reschedule(
                 [self.booking_time - timedelta(hours=1)])
             self.booking.save()
-        # This should result in 3 time slots:
-        # * 8-10
-        # * 10-11:30
+
+        # This should result in 5 time slots:
+        # * 8-9:30
+        # * 9:30-10
+        # * 10-11
+        # * 11-11:30
         # * 11:30-14:00
         slots = TimeSlot.objects.filter(
             subject_id=self.host.id).order_by('start')
-        self.assertEqual(len(slots), 3)
-        times = ((time(8), time(10)),
-                 (time(10), time(11, 30)),
-                 (time(11, 30), time(14)))
-        for idx, (start, end) in enumerate(times):
-            self.assertEqual((slots[idx].start + self.offset).time(), start)
-            self.assertEqual((slots[idx].end + self.offset).time(), end)
+        times = ((time(8), time(9, 30), False),
+                 (time(9, 30), time(10), True),
+                 (time(10), time(11), True),
+                 (time(11), time(11, 30), True),
+                 (time(11, 30), time(14), False))
+        self._check_time_slots(times, slots)
 
         booking_slots = self.booking.time_slots.all()
         self.assertEqual(len(booking_slots), 1)
@@ -169,38 +183,35 @@ class BookingTests(TestCase):
             requested_time_1=self.booking_time - timedelta(hours=2),
         )
         extra_booking.save()
-        # This should result in 5 time slots:
-        # * 8-9, free
-        # * 9-10:30, busy
-        # * 10:30-11, free
-        # * 11-12:30, busy
-        # * 12:30-14:00, free
+        # This should result in 8 time slots:
         slots = TimeSlot.objects.filter(
             subject_id=self.host.id).order_by('start')
-        self.assertEqual(len(slots), 5)
-        times = ((time(8), time(9), False),
-                 (time(9), time(10, 30), True),
-                 (time(10, 30), time(11), False),
-                 (time(11), time(12, 30), True),
+        times = ((time(8), time(8, 30), False),
+                 (time(8, 30), time(9), True),
+                 (time(9), time(10), True),  # second booking slot
+                 (time(10), time(10, 30), True),
+                 (time(10, 30), time(11), True),
+                 (time(11), time(12, 00), True),  # original booking slot
+                 (time(12), time(12, 30), True),
                  (time(12, 30), time(14), False))
-        for idx, (start, end, busy) in enumerate(times):
-            self.assertEqual((slots[idx].start + self.offset).time(), start)
-            self.assertEqual((slots[idx].end + self.offset).time(), end)
-            self.assertEqual(slots[idx].busy, busy)
+        self._check_time_slots(times, slots)
         # now, if the second booking is declined, the contingent slots should
         # free up
         with extra_booking.set_editor(self.host):
             extra_booking.cancel_with_reason('test slot freeing', '')
-        # This should result in 3 time slots:
+            extra_booking.save()
+        # This should result in 5 time slots:
         # * 8-9, free
         # * 9-10:30, busy
         # * 10:30-14, free
         slots = TimeSlot.objects.filter(
             subject_id=self.host.id).order_by('start')
-        self.assertEqual(len(slots), 5)
-        times = ((time(8), time(9), False),
-                 (time(9), time(10, 30), False),
-                 (time(10, 30), time(14), True))
+        times = ((time(8), time(10, 30), False),
+                 (time(10, 30), time(11), True),
+                 (time(11), time(12), True),
+                 (time(12), time(12, 30), True),
+                 (time(12, 30), time(14), False))
+        self._check_time_slots(times, slots)
 
     def test_multiple_bookings(self):
         self.host.save()
@@ -214,16 +225,15 @@ class BookingTests(TestCase):
         multiple_booking.save()
         slots = TimeSlot.objects.filter(
             subject_id=self.host.id).order_by('start')
-        self.assertEqual(len(slots), 5)
-        times = ((time(8), time(9), False),
-                 (time(9), time(10, 30), False),
-                 (time(10, 30), time(11), False),
-                 (time(11), time(12, 30), True),
+        times = ((time(8), time(8, 30), False),
+                 (time(8, 30), time(9), True),
+                 (time(9), time(10), False),  # multiple booking slot
+                 (time(10), time(10, 30), True),
+                 (time(10, 30), time(11), True),
+                 (time(11), time(12, 00), True),  # original booking slot
+                 (time(12), time(12, 30), True),
                  (time(12, 30), time(14), False))
-        for idx, (start, end, busy) in enumerate(times):
-            self.assertEqual((slots[idx].start + self.offset).time(), start)
-            self.assertEqual((slots[idx].end + self.offset).time(), end)
-            self.assertEqual(slots[idx].busy, busy)
+        self._check_time_slots(times, slots)
         # Now we should be able to create another booking at the same time
         second_multiple_booking = models.Booking(
             guest=self.guest,
@@ -233,22 +243,19 @@ class BookingTests(TestCase):
         )
         second_multiple_booking.allow_multiple_bookings = True
         second_multiple_booking.save()
-        for idx, (start, end, busy) in enumerate(times):
-            self.assertEqual((slots[idx].start + self.offset).time(), start)
-            self.assertEqual((slots[idx].end + self.offset).time(), end)
-            self.assertEqual(slots[idx].busy, busy)
+        self._check_time_slots(times, slots)
         # but a booking in an offset time should fail
         with self.assertRaises(TimeUnavailableError):
             models.Booking.objects.create(
                 guest=self.guest,
                 subject=self.host,
                 host=self.host,
-                requested_time_1=self.booking_time -
-                timedelta(hours=1, minutes=30),
+                requested_time_1=self.booking_time - timedelta(
+                    hours=2, minutes=30),
             )
 
     def test_cancel(self):
-        other_booking_time = self.booking_time - models.Booking.DURATION
+        other_booking_time = self.booking_time - timedelta(minutes=90)
         other_booking = models.Booking(
             guest=self.guest,
             subject=self.host,

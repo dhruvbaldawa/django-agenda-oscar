@@ -36,7 +36,7 @@ class AvailabilitySingleTestCase(TestCase):
         """
         If we create 3 availabilities that are right beside each other,
         we get one large time slot, but if we remove the middle one, we
-        end up with 3 again.
+        end up with 2 again.
         """
         timezone = pytz.timezone('America/Vancouver')
         start = date(2002, 1, 9)
@@ -67,7 +67,7 @@ class AvailabilitySingleTestCase(TestCase):
 
         offset = timezone.utcoffset(datetime(2002, 1, 9))
         slots = TimeSlot.objects.filter(
-            subject_id=self.host.id)
+            subject_id=self.host.id).order_by('start')
         occurrences = AvailabilityOccurrence.objects.filter(
             subject_id=self.host.id)
         self.assertEqual(len(slots), 1)
@@ -76,7 +76,8 @@ class AvailabilitySingleTestCase(TestCase):
         self.assertEqual((slots[0].end + offset).time(), time(14))
 
         second.delete()
-        slots = TimeSlot.objects.filter(subject_id=self.host.id)
+        slots = TimeSlot.objects.filter(
+            subject_id=self.host.id).order_by('start')
         occurrences = AvailabilityOccurrence.objects.filter(
             subject_id=self.host.id)
         self.assertEqual(len(slots), 2)

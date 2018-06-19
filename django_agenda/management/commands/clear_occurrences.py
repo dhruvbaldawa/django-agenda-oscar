@@ -9,5 +9,4 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         for occurrence in AvailabilityOccurrence.objects.all():
-            occurrence.predelete()
             occurrence.delete()

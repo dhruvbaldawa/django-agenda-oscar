@@ -12,7 +12,7 @@ from django_agenda.models import (AbstractBooking, InvalidState, InvalidTime,
 
 
 class Booking(AbstractBooking):
-    DURATION = timedelta(minutes=90)
+    DURATION = timedelta(minutes=60)
 
     guest = models.ForeignKey(
         verbose_name=_('guest'), to=settings.AUTH_USER_MODEL,
@@ -50,8 +50,11 @@ class Booking(AbstractBooking):
         self.__super_editor = False
         self.allow_multiple_bookings = False
 
-    def _is_booked_slot_busy(self, _1: TimeSlot):
-        return self.allow_multiple_bookings
+    def _get_padding(self):
+        return timedelta(minutes=30)
+
+    def _is_booked_slot_busy(self):
+        return not self.allow_multiple_bookings
 
     def get_requested_times(self):
         for time in (self.requested_time_1, self.requested_time_2):
@@ -154,12 +157,15 @@ class Booking(AbstractBooking):
         else:
             self.assignee = self.guest
 
-    def _add_slots(self, slots: List[TimeSlot]):
-        for slot in slots:
-            BookingTime(time_slot=slot, booking=self).save()
+    def _connect_slots(self, slots: List[TimeSlot]):
+        records = [BookingTime(time_slot=slot, booking=self)
+                   for slot in slots]
+        BookingTime.objects.bulk_create(records)
 
-    def _disconnect_slot(self, slot: TimeSlot):
-        BookingTime.objects.filter(booking=self, time_slot=slot).delete()
+    def _disconnect_slots(self, slots: TimeSlot):
+        slot_ids = {slot.id for slot in slots}
+        BookingTime.objects.filter(
+            booking=self, time_slot_id__in=slot_ids).delete()
 
     def _book_unscheduled(self):
         """
@@ -167,14 +173,6 @@ class Booking(AbstractBooking):
         unscheduled space.
         """
         return self.__super_editor or self.__editor == self.subject
-
-    def slot_bookable(self, slot: TimeSlot, span: TimeSpan) -> bool:
-        if slot.time_equals(span):
-            return True
-        return slot.contains(span) and not slot.bookings.exists()
-
-    def is_booked(self, slot: TimeSlot) -> bool:
-        return slot.bookings.exists()
 
     @contextlib.contextmanager
     def set_super_editor(self):

@@ -50,6 +50,11 @@ class Booking(AbstractBooking):
         self.__super_editor = False
         self.allow_multiple_bookings = False
 
+    def is_duplicate(self, other_booking):
+        return (other_booking.host == self.host
+                and other_booking.subject == self.subject
+                and other_booking.guest == self.guest)
+
     def _get_padding(self):
         return timedelta(minutes=30)
 

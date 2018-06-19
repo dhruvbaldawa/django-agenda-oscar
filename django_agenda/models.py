@@ -588,6 +588,9 @@ class AbstractBooking(models.Model):
                 else:
                     if slot.bookings.exists():
                         if slot.time_equals(span):
+                            for booking in slot.bookings.all():
+                                if self.is_duplicate(booking):
+                                    raise InvalidState('Duplicate booking')
                             return span, [slot]
                         else:
                             raise TimeUnavailableError(
@@ -700,6 +703,14 @@ class AbstractBooking(models.Model):
             super().save(*args, **kwargs)
             self._connect_slots(new_slots)
         # end transaction
+
+    def is_duplicate(self, other_booking):
+        """
+        Assuming the times are the same, is this a duplicate booking?
+
+        Always returning False effectively disables duplicate checking
+        """
+        return False
 
     def _get_padding(self) -> timedelta:
         """

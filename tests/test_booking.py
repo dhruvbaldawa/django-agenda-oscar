@@ -5,17 +5,10 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 
 import django_agenda.signals
-from django_agenda.models import Availability, TimeSlot, TimeUnavailableError
+from django_agenda.models import (Availability, InvalidState, TimeSlot,
+                                  TimeUnavailableError)
 
 from . import models
-
-
-def create_host():
-    return User.objects.create(email='host@example.org', username="host")
-
-
-def create_guest():
-    return User.objects.create(email='guest@example.org', username='guest')
 
 
 class BookingTests(TestCase):
@@ -30,14 +23,14 @@ class BookingTests(TestCase):
         self.timezone = pytz.timezone('America/Vancouver')
         self.birthday = datetime(1984, 12, 11, tzinfo=self.timezone)
         django_agenda.signals.setup()
-        self.host = create_host()
+        self.host = User.objects.create(
+            email='host@example.org', username="host")
         self.availability = Availability.objects.create(
             start_date=self.birthday.date(),
             start_time=time(8),
             end_time=time(14),
             subject=self.host,
             timezone=str(self.timezone)
-
         )
         self.offset = self.timezone.utcoffset(datetime(1984, 12, 11))
         self.availability.recreate_occurrences(
@@ -45,7 +38,10 @@ class BookingTests(TestCase):
         slots = TimeSlot.objects.filter(subject_id=self.host.id)
         self.assertEqual(len(slots), 1)
 
-        self.guest = create_guest()
+        self.guest = User.objects.create(
+            email='guest@example.org', username="guest")
+        self.second_guest = User.objects.create(
+            email='second_guest@example.org', username="second_guest")
         self.booking_time = pytz.utc.localize(
             datetime.combine(self.birthday.date(), time(11)) - self.offset)
         self.booking = models.Booking.objects.create(
@@ -213,6 +209,25 @@ class BookingTests(TestCase):
                  (time(12, 30), time(14), False))
         self._check_time_slots(times, slots)
 
+    def test_disallow_multiple_bookings(self):
+        self.host.save()
+        multiple_booking = models.Booking(
+            guest=self.guest,
+            subject=self.host,
+            host=self.host,
+            requested_time_1=self.booking_time - timedelta(hours=2),
+        )
+        multiple_booking.save()
+        second_multiple_booking = models.Booking(
+            guest=self.second_guest,
+            subject=self.host,
+            host=self.host,
+            requested_time_1=self.booking_time - timedelta(hours=2),
+        )
+        # Now we should not be able to create another booking at the same time
+        with self.assertRaises(TimeUnavailableError):
+            second_multiple_booking.save()
+
     def test_multiple_bookings(self):
         self.host.save()
         multiple_booking = models.Booking(
@@ -241,18 +256,19 @@ class BookingTests(TestCase):
             host=self.host,
             requested_time_1=self.booking_time - timedelta(hours=2),
         )
-        second_multiple_booking.allow_multiple_bookings = True
+        with self.assertRaises(InvalidState):
+            second_multiple_booking.save()
+        second_multiple_booking.guest = self.second_guest
+        # a booking in an offset time should fail
+        second_multiple_booking.requested_time_1 = \
+            self.booking_time - timedelta(hours=2, minutes=30)
+        with self.assertRaises(TimeUnavailableError):
+            second_multiple_booking.save()
+        # set it back to the overlapping spot, and this should work
+        second_multiple_booking.requested_time_1 = \
+            self.booking_time - timedelta(hours=2)
         second_multiple_booking.save()
         self._check_time_slots(times, slots)
-        # but a booking in an offset time should fail
-        with self.assertRaises(TimeUnavailableError):
-            models.Booking.objects.create(
-                guest=self.guest,
-                subject=self.host,
-                host=self.host,
-                requested_time_1=self.booking_time - timedelta(
-                    hours=2, minutes=30),
-            )
 
     def test_cancel(self):
         other_booking_time = self.booking_time - timedelta(minutes=90)

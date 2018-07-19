@@ -1,7 +1,5 @@
 from django.apps import AppConfig
 
-# from django.core.management import call_command
-
 try:
     from django.test.utils import setup_databases
 except ImportError:  # workaround for django 1.10
@@ -22,6 +20,7 @@ class AgendaDemoConfig(AppConfig):
 
     def ready(self):
         setup_databases(verbosity=3, interactive=False)
-        # add notification objects
-        # call_command('make_notifications')
+        from django.contrib.auth.models import User
+        User.objects.create_superuser('admin', 'admin@example.org', 'admin')
+        # add fixtures
         # call_command('loaddata', 'demo')

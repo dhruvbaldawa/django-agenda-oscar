@@ -228,6 +228,51 @@ class BookingTests(TestCase):
         with self.assertRaises(TimeUnavailableError):
             second_multiple_booking.save()
 
+    def test_multiple_booking_cancel(self):
+        self.host.save()
+        multiple_booking = models.Booking(
+            guest=self.guest,
+            subject=self.host,
+            host=self.host,
+            requested_time_1=self.booking_time - timedelta(hours=2),
+        )
+        multiple_booking.allow_multiple_bookings = True
+        multiple_booking.save()
+        slots = TimeSlot.objects.filter(
+            subject_id=self.host.id).order_by('start')
+        # Now we should be able to create another booking at the same time
+        second_multiple_booking = models.Booking(
+            guest=self.second_guest,
+            subject=self.host,
+            host=self.host,
+            requested_time_1=self.booking_time - timedelta(hours=2),
+        )
+        second_multiple_booking.allow_multiple_bookings = True
+        second_multiple_booking.save()
+        with multiple_booking.set_editor(self.host):
+            multiple_booking.cancel_with_reason('foo', 'bar')
+            multiple_booking.save()
+        times = ((time(8), time(8, 30), False),
+                 (time(8, 30), time(9), True),
+                 (time(9), time(10), False),  # multiple booking slot
+                 (time(10), time(10, 30), True),
+                 (time(10, 30), time(11), True),
+                 (time(11), time(12, 00), True),  # original booking slot
+                 (time(12), time(12, 30), True),
+                 (time(12, 30), time(14), False))
+        self._check_time_slots(times, slots)
+        times = ((time(8), time(10, 30), False),
+                 (time(10, 30), time(11), True),
+                 (time(11), time(12, 00), True),  # original booking slot
+                 (time(12), time(12, 30), True),
+                 (time(12, 30), time(14), False))
+        with second_multiple_booking.set_editor(self.host):
+            second_multiple_booking.cancel_with_reason('foo', 'bar')
+            second_multiple_booking.save()
+        slots = TimeSlot.objects.filter(
+            subject_id=self.host.id).order_by('start')
+        self._check_time_slots(times, slots)
+
     def test_multiple_bookings(self):
         self.host.save()
         multiple_booking = models.Booking(
@@ -256,6 +301,7 @@ class BookingTests(TestCase):
             host=self.host,
             requested_time_1=self.booking_time - timedelta(hours=2),
         )
+        second_multiple_booking.allow_multiple_bookings = True
         with self.assertRaises(InvalidState):
             second_multiple_booking.save()
         second_multiple_booking.guest = self.second_guest
@@ -268,6 +314,8 @@ class BookingTests(TestCase):
         second_multiple_booking.requested_time_1 = \
             self.booking_time - timedelta(hours=2)
         second_multiple_booking.save()
+        slots = TimeSlot.objects.filter(
+            subject_id=self.host.id).order_by('start')
         self._check_time_slots(times, slots)
 
     def test_cancel(self):
@@ -292,3 +340,8 @@ class BookingTests(TestCase):
         with self.booking.set_editor(self.guest):
             self.booking.cancel_with_reason('foo', 'bar')
             self.booking.save()
+        times = ((time(8), time(14), False),)
+        slots = TimeSlot.objects.filter(
+            subject_id=self.host.id).order_by('start')
+        self._check_time_slots(times, slots)
+

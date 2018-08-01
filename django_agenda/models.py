@@ -668,23 +668,28 @@ class AbstractBooking(models.Model):
                 inter_slots = []
                 if found_slots:
                     s_bound = found_slots[0].start
-                    e_bound = found_slots[-1].end
-                    for span in found_spans:
-                        if s_bound < span.padded_start:
+                    for found_slot in found_slots:
+                        s_bound = max(s_bound, found_slot.start)
+                        for found_span in found_spans:
+                            if s_bound >= found_span.padded_start:
+                                s_bound = max(s_bound, found_span.padded_end)
+                                continue
+                            if found_slot.end < found_span.padded_start:
+                                break
                             # create now so we get the ID
                             # could optimize on postgres
                             inter_slots.append(TimeSlot.objects.create(
                                 start=s_bound,
-                                end=span.padded_start,
+                                end=found_span.padded_start,
                                 subject_id=self.subject_id,
                                 subject_type=self.subject_type))
-                        s_bound = span.padded_end
-                    if s_bound < e_bound:
-                        inter_slots.append(TimeSlot.objects.create(
-                            start=s_bound,
-                            end=e_bound,
-                            subject_id=self.subject_id,
-                            subject_type=self.subject_type))
+                            s_bound = found_span.padded_end
+                        if s_bound < found_slot.end:
+                            inter_slots.append(TimeSlot.objects.create(
+                                start=s_bound,
+                                end=found_slot.end,
+                                subject_id=self.subject_id,
+                                subject_type=self.subject_type))
 
                 for inter_slot in inter_slots:
                     match_ao_ids = set()

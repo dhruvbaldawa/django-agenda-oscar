@@ -11,7 +11,27 @@ from django_agenda.models import (Availability, InvalidState, TimeSlot,
 from . import models
 
 
-class BookingTests(TestCase):
+class BaseCase(TestCase):
+
+    def check_time_slots(self, expected_data, slots):
+        min_len = min(len(expected_data), len(slots))
+        for idx, (start, end, busy) in enumerate(expected_data):
+            if not idx < min_len:
+                break
+            self.assertEqual(
+                start, (slots[idx].start + self.offset).time(),
+                'Slot {} did not have the right start time'.format(idx))
+            self.assertEqual(
+                end, (slots[idx].end + self.offset).time(),
+                'Slot {} did not have the right end time'.format(idx))
+            self.assertEqual(
+                busy, slots[idx].busy,
+                'Slot {} did not have the right busy state'.format(idx))
+        self.assertEqual(
+            len(expected_data), len(slots), 'Incorrect number of slots')
+
+
+class BookingTests(BaseCase):
 
     def setUp(self):
         """
@@ -63,26 +83,12 @@ class BookingTests(TestCase):
                  (time(11), time(12), True),
                  (time(12), time(12, 30), True),
                  (time(12, 30), time(14), False))
-        self._check_time_slots(times, slots)
+        self.check_time_slots(times, slots)
 
         booking_slots = models.BookingTime.objects.all()
         self.assertEqual(len(booking_slots), 1)
         self.assertEqual(
             len(booking_slots[0].time_slot.availability_occurrences.all()), 0)
-
-    def _check_time_slots(self, expected_data, slots):
-        self.assertEqual(
-            len(expected_data), len(slots), 'Incorrect number of slots')
-        for idx, (start, end, busy) in enumerate(expected_data):
-            self.assertEqual(
-                start, (slots[idx].start + self.offset).time(),
-                'Slot {} did not have the right start time'.format(idx))
-            self.assertEqual(
-                end, (slots[idx].end + self.offset).time(),
-                'Slot {} did not have the right end time'.format(idx))
-            self.assertEqual(
-                busy, slots[idx].busy,
-                'Slot {} did not have the right busy state'.format(idx))
 
     def test_create_slots(self):
         """
@@ -121,14 +127,14 @@ class BookingTests(TestCase):
                  (time(10, 30), time(11), True),
                  (time(11), time(12), True),
                  (time(12), time(12, 30), True))
-        self._check_time_slots(times, slots)
+        self.check_time_slots(times, slots)
         # make sure the slots free up after the booking is saved
         self.booking.state = models.Booking.STATE_CANCELED
         self.booking.save()
         slots = TimeSlot.objects.filter(
             subject_id=self.host.id).order_by('start')
         times = ((time(8), time(12), False),)
-        self._check_time_slots(times, slots)
+        self.check_time_slots(times, slots)
 
     def test_add_overlapping_booking(self):
         """
@@ -164,7 +170,7 @@ class BookingTests(TestCase):
                  (time(10), time(11), True),
                  (time(11), time(11, 30), True),
                  (time(11, 30), time(14), False))
-        self._check_time_slots(times, slots)
+        self.check_time_slots(times, slots)
 
         booking_slots = self.booking.time_slots.all()
         self.assertEqual(len(booking_slots), 1)
@@ -190,7 +196,7 @@ class BookingTests(TestCase):
                  (time(11), time(12, 00), True),  # original booking slot
                  (time(12), time(12, 30), True),
                  (time(12, 30), time(14), False))
-        self._check_time_slots(times, slots)
+        self.check_time_slots(times, slots)
         # now, if the second booking is declined, the contingent slots should
         # free up
         with extra_booking.set_editor(self.host):
@@ -207,7 +213,7 @@ class BookingTests(TestCase):
                  (time(11), time(12), True),
                  (time(12), time(12, 30), True),
                  (time(12, 30), time(14), False))
-        self._check_time_slots(times, slots)
+        self.check_time_slots(times, slots)
 
     def test_disallow_multiple_bookings(self):
         self.host.save()
@@ -260,7 +266,7 @@ class BookingTests(TestCase):
                  (time(11), time(12, 00), True),  # original booking slot
                  (time(12), time(12, 30), True),
                  (time(12, 30), time(14), False))
-        self._check_time_slots(times, slots)
+        self.check_time_slots(times, slots)
         times = ((time(8), time(10, 30), False),
                  (time(10, 30), time(11), True),
                  (time(11), time(12, 00), True),  # original booking slot
@@ -271,7 +277,7 @@ class BookingTests(TestCase):
             second_multiple_booking.save()
         slots = TimeSlot.objects.filter(
             subject_id=self.host.id).order_by('start')
-        self._check_time_slots(times, slots)
+        self.check_time_slots(times, slots)
 
     def test_multiple_bookings(self):
         self.host.save()
@@ -293,7 +299,7 @@ class BookingTests(TestCase):
                  (time(11), time(12, 00), True),  # original booking slot
                  (time(12), time(12, 30), True),
                  (time(12, 30), time(14), False))
-        self._check_time_slots(times, slots)
+        self.check_time_slots(times, slots)
         # Now we should be able to create another booking at the same time
         second_multiple_booking = models.Booking(
             guest=self.guest,
@@ -316,7 +322,15 @@ class BookingTests(TestCase):
         second_multiple_booking.save()
         slots = TimeSlot.objects.filter(
             subject_id=self.host.id).order_by('start')
-        self._check_time_slots(times, slots)
+        times = ((time(8), time(8, 30), False),
+                 (time(8, 30), time(9), True),
+                 (time(9), time(10), False),  # multiple booking slot
+                 (time(10), time(10, 30), True),
+                 (time(10, 30), time(11), True),
+                 (time(11), time(12, 00), True),  # original booking slot
+                 (time(12), time(12, 30), True),
+                 (time(12, 30), time(14), False))
+        self.check_time_slots(times, slots)
 
     def test_cancel(self):
         other_booking_time = self.booking_time - timedelta(minutes=90)
@@ -343,5 +357,86 @@ class BookingTests(TestCase):
         times = ((time(8), time(14), False),)
         slots = TimeSlot.objects.filter(
             subject_id=self.host.id).order_by('start')
-        self._check_time_slots(times, slots)
+        self.check_time_slots(times, slots)
+
+
+class AdvancedBookingTests(BaseCase):
+
+    def setUp(self):
+        """
+        Test the ability of a booking to divide time slots
+
+        In this test we create a large availability, and then do a booking
+        inside it. The result is that the time slot should get split up.
+        """
+        self.timezone = pytz.timezone('America/Vancouver')
+        self.date = datetime(1990, 3, 3, tzinfo=self.timezone)
+        django_agenda.signals.setup()
+        self.host = User.objects.create(
+            email='host@example.org', username="host")
+        self.offset = self.timezone.utcoffset(datetime(1990, 3, 3))
+
+    def test_multiple_request_times(self):
+        first_avail = Availability.objects.create(
+            start_date=self.date.date(),
+            start_time=time(8),
+            end_time=time(14),
+            subject=self.host,
+            timezone=str(self.timezone)
+        )
+        second_avail = Availability.objects.create(
+            start_date=datetime(1990, 3, 5, tzinfo=self.timezone).date(),
+            start_time=time(8),
+            end_time=time(14),
+            subject=self.host,
+            timezone=str(self.timezone)
+        )
+
+        for avail in (first_avail, second_avail):
+            avail.recreate_occurrences(
+                self.date, self.date + timedelta(days=10))
+        slots = TimeSlot.objects.filter(subject_id=self.host.id)
+        self.assertEqual(len(slots), 2)
+
+        times = ((time(8), time(14), False),
+                 (time(8), time(14), False))
+        self.check_time_slots(times, slots)
+
+        self.guest = User.objects.create(
+            email='guest@example.org', username="guest")
+        first_booking_time = pytz.utc.localize(
+            datetime.combine(first_avail.start_date, time(11)) - self.offset)
+        second_booking_time = pytz.utc.localize(
+            datetime.combine(second_avail.start_date, time(11)) - self.offset)
+
+        self.booking = models.Booking.objects.create(
+            guest=self.guest,
+            host=self.host,
+            subject=self.host,
+            requested_time_2=second_booking_time,
+            requested_time_1=first_booking_time,
+        )
+        # This should result in 5 time slots:
+        # * 8-10:30
+        # * 10:30-11
+        # * 11-12
+        # * 12-12:30
+        # * 12:30-14:00
+        slots = TimeSlot.objects.filter(
+            subject_id=self.host.id).order_by('start')
+        times = ((time(8), time(10, 30), False),
+                 (time(10, 30), time(11), True),
+                 (time(11), time(12), True),
+                 (time(12), time(12, 30), True),
+                 (time(12, 30), time(14), False),
+                 (time(8), time(10, 30), False),
+                 (time(10, 30), time(11), True),
+                 (time(11), time(12), True),
+                 (time(12), time(12, 30), True),
+                 (time(12, 30), time(14), False))
+        self.check_time_slots(times, slots)
+
+        booking_slots = models.BookingTime.objects.all()
+        self.assertEqual(2, len(booking_slots))
+
 

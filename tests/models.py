@@ -36,6 +36,8 @@ class Booking(AbstractBooking):
         verbose_name=_('time slot'), to=TimeSlot,
         through='BookingTime', through_fields=('booking', 'time_slot'),
         related_name='bookings')
+    padding = models.DurationField(
+        verbose_name=_('padding'), default=timedelta(minutes=30))
 
     created_at = models.DateTimeField(
         _('created at'), auto_now_add=True, db_index=True)
@@ -56,7 +58,7 @@ class Booking(AbstractBooking):
                 and other_booking.guest == self.guest)
 
     def _get_padding(self):
-        return timedelta(minutes=30)
+        return self.padding
 
     def _is_booked_slot_busy(self):
         return not self.allow_multiple_bookings

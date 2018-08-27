@@ -33,6 +33,7 @@ from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models, transaction
+from django.db.models import Q
 from django.utils.dateformat import DateFormat, TimeFormat
 from django.utils.translation import ugettext_lazy as _
 from recurrence.fields import RecurrenceField
@@ -580,11 +581,11 @@ class AbstractBooking(models.Model):
         :return: Tuple[TimeSpan, List[TimeSlot]]
         """
         free_slots = []
+        busy_slots = []
         for slot in slots:
             if span.overlaps(slot):
                 if slot.busy:
-                    raise TimeUnavailableError(
-                        'Requested time is busy')
+                    busy_slots.append(slot)
                 else:
                     if slot.bookings.exists():
                         if slot.time_equals(span):
@@ -603,6 +604,9 @@ class AbstractBooking(models.Model):
                 if slot.bookings.exists():
                     raise TimeUnavailableError(
                         'Existing booking is too close to time')
+        if busy_slots:
+            raise TimeUnavailableError(
+                'Requested time is busy')
         if free_slots:
             return span, free_slots
         else:
@@ -724,6 +728,71 @@ class AbstractBooking(models.Model):
         This time will get marked as busy.
         """
         return timedelta(0)
+
+    def _padding_changed(self):
+        """
+        Notify booking that the padding has changed
+
+        It's the booking's responsibility to update itself if required
+        """
+        subject_q = Q(subject_id=self.subject_id,
+                      subject_type=self.subject_type)
+        padding_length = self._get_padding()
+        my_slots = TimeSlot.objects.filter(subject_q)
+        padding_slots = TimeSlot.objects.filter(
+            padding_for__in=my_slots).order_by('start')
+        changed_slots = []
+        changed_free_slots = []
+        delete_free_slots = []
+        for slot in padding_slots:
+            start = slot.start
+            end = slot.end
+            if slot.padding_for.start > slot.start:
+                # it's padding before
+                start = end - padding_length
+            else:
+                end = start + padding_length
+            if (end != slot.end) or (start != slot.start):
+                slot.start = start
+                slot.end = end
+                changed_slots.append(slot)
+        # only do something if things actually changed
+        if changed_slots:
+            regen_time = changed_slots[0]
+            for slot in changed_slots[1:]:
+                regen_time = regen_time.expanded(slot)
+            for slot in changed_slots:
+                slot.save()
+            # from free slots may need to be shortened
+            overlap_q = (Q(end__gte=regen_time.start) |
+                         Q(start__lte=regen_time.end))
+            regen_query = TimeSlot.objects.filter(
+                subject_q & overlap_q).filter(busy=False).order_by('start')
+            changed_slot_idx = 0
+            for slot in regen_query:
+                if slot.bookings.exists():
+                    continue
+                for cs in changed_slots[changed_slot_idx:]:
+                    if cs.start <= slot.start:
+                        if cs.end >= slot.end:
+                            delete_free_slots.append(slot)
+                        elif cs.end > slot.start:
+                            slot.start = cs.end
+                            changed_free_slots.append(slot)
+                        else:
+                            changed_slot_idx += 1
+                    else:
+                        if cs.start < slot.end:
+                            slot.end = cs.start
+                            changed_free_slots.append(slot)
+                        else:
+                            continue
+            for slot in changed_slots:
+                slot.save()
+            for slot in changed_free_slots:
+                slot.save()
+            for slot in delete_free_slots:
+                slot.delete()
 
     def _is_booked_slot_busy(self):
         """

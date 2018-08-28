@@ -741,9 +741,9 @@ class AbstractBooking(models.Model):
         my_slots = TimeSlot.objects.filter(subject_q)
         padding_slots = TimeSlot.objects.filter(
             padding_for__in=my_slots).order_by('start')
-        changed_slots = []
-        changed_free_slots = []
-        delete_free_slots = []
+        changed_slots = set()
+        changed_free_slots = set()
+        delete_free_slots = set()
         for slot in padding_slots:
             start = slot.start
             end = slot.end
@@ -755,12 +755,16 @@ class AbstractBooking(models.Model):
             if (end != slot.end) or (start != slot.start):
                 slot.start = start
                 slot.end = end
-                changed_slots.append(slot)
+                changed_slots.add(slot)
         # only do something if things actually changed
-        if changed_slots:
-            regen_time = changed_slots[0]
-            for slot in changed_slots[1:]:
+        regen_time = None
+        for slot in changed_slots:
+            if regen_time is None:
+                regen_time = slot
+            else:
                 regen_time = regen_time.expanded(slot)
+
+        if regen_time is not None:
             for slot in changed_slots:
                 slot.save()
             # from free slots may need to be shortened
@@ -769,25 +773,23 @@ class AbstractBooking(models.Model):
             regen_query = TimeSlot.objects.filter(
                 subject_q & overlap_q).filter(busy=False).order_by('start')
             changed_slot_idx = 0
+            csl = list(changed_slots)
             for slot in regen_query:
                 if slot.bookings.exists():
                     continue
-                for cs in changed_slots[changed_slot_idx:]:
+                for cs in csl[changed_slot_idx:]:
                     if cs.start <= slot.start:
                         if cs.end >= slot.end:
-                            delete_free_slots.append(slot)
-                            changed_slot_idx += 1
+                            delete_free_slots.add(slot)
                         elif cs.end > slot.start:
                             slot.start = cs.end
-                            changed_free_slots.append(slot)
-                            changed_slot_idx += 1
+                            changed_free_slots.add(slot)
                         else:
-                            changed_slot_idx += 1
+                            changed_slots.remove(cs)
                     else:
                         if cs.start < slot.end:
                             slot.end = cs.start
-                            changed_free_slots.append(slot)
-                            changed_slot_idx += 1
+                            changed_free_slots.add(slot)
                         else:
                             continue
             for slot in changed_slots:

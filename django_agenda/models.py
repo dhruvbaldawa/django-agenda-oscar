@@ -776,15 +776,18 @@ class AbstractBooking(models.Model):
                     if cs.start <= slot.start:
                         if cs.end >= slot.end:
                             delete_free_slots.append(slot)
+                            changed_slot_idx += 1
                         elif cs.end > slot.start:
                             slot.start = cs.end
                             changed_free_slots.append(slot)
+                            changed_slot_idx += 1
                         else:
                             changed_slot_idx += 1
                     else:
                         if cs.start < slot.end:
                             slot.end = cs.start
                             changed_free_slots.append(slot)
+                            changed_slot_idx += 1
                         else:
                             continue
             for slot in changed_slots:

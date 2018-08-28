@@ -2,7 +2,7 @@ from django.apps import AppConfig
 from django.utils.translation import ugettext_lazy as _
 
 
-class DjangoAgendaConfig(AppConfig):
+class Config(AppConfig):
     name = 'django_agenda'
     verbose_name = _('Agenda')
 

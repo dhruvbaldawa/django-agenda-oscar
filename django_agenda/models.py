@@ -449,6 +449,15 @@ class TimeUnavailableError(InvalidTime):
     pass
 
 
+class OverlappingTimeError(TimeUnavailableError):
+
+    def __init__(self):
+        super().__init__(
+            'There\'s already a booking in part of this time, '
+            'try either requesting the exact same time of the '
+            'booking or a later time')
+
+
 class AbstractBooking(models.Model):
 
     class Meta:
@@ -594,16 +603,14 @@ class AbstractBooking(models.Model):
                                     raise InvalidState('Duplicate booking')
                             return span, [slot]
                         else:
-                            raise TimeUnavailableError(
-                                'Existing booking inside time')
+                            raise OverlappingTimeError()
                     if slot.contains(span):
                         return span, [slot]
                     else:
                         free_slots.append(slot)
             else:
                 if slot.bookings.exists():
-                    raise TimeUnavailableError(
-                        'Existing booking is too close to time')
+                    raise OverlappingTimeError()
         if busy_slots:
             raise TimeUnavailableError(
                 'Requested time is busy')

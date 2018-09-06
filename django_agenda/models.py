@@ -792,7 +792,7 @@ class AbstractBooking(models.Model):
                             slot.start = cs.end
                             changed_free_slots.add(slot)
                         else:
-                            changed_slots.remove(cs)
+                            changed_slots.discard(cs)
                     else:
                         if cs.start < slot.end:
                             slot.end = cs.start

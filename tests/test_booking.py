@@ -444,6 +444,171 @@ class AdvancedBookingTests(BaseCase):
                  (time(13), time(14), False))
         self.check_time_slots(times, slots)
 
+    def test_big_padding_changes(self):
+        """
+        If a booking's padding changes, it's important to regenerate the
+        padded (and other affected) slots so that we don't display bad data.
+        """
+        # create an availability to use
+        availabilities = []
+        for idx in range(10):
+            availabilities.append(Availability.objects.create(
+                start_date=(self.date + timedelta(days=idx)).date(),
+                start_time=time(8),
+                end_time=time(14),
+                subject=self.host,
+                timezone=str(self.timezone))
+            )
+        for avail in availabilities:
+            avail.recreate_occurrences(
+                self.date, self.date + timedelta(days=10))
+        slots = TimeSlot.objects.filter(subject_id=self.host.id)
+        times = ((time(8), time(14), False),
+                 (time(8), time(14), False),
+                 (time(8), time(14), False),
+                 (time(8), time(14), False),
+                 (time(8), time(14), False),
+                 (time(8), time(14), False),
+                 (time(8), time(14), False),
+                 (time(8), time(14), False),
+                 (time(8), time(14), False),
+                 (time(8), time(14), False))
+        self.check_time_slots(times, slots)
+
+        self.guest = User.objects.create(
+            email='guest@example.org', username="guest")
+        booking_time = pytz.utc.localize(
+            datetime.combine(availabilities[0].start_date, time(11)) - self.offset)
+        booking = models.Booking.objects.create(
+            guest=self.guest,
+            host=self.host,
+            subject=self.host,
+            requested_time_1=booking_time,
+        )
+        slots = TimeSlot.objects.filter(
+            subject_id=self.host.id).order_by('start')
+        #  They'll be the usual 5 slots, plus other days
+        times = ((time(8), time(10, 30), False),
+                 (time(10, 30), time(11), True),
+                 (time(11), time(12), True),
+                 (time(12), time(12, 30), True),
+                 (time(12, 30), time(14), False),
+                 (time(8), time(14), False),
+                 (time(8), time(14), False),
+                 (time(8), time(14), False),
+                 (time(8), time(14), False),
+                 (time(8), time(14), False),
+                 (time(8), time(14), False),
+                 (time(8), time(14), False),
+                 (time(8), time(14), False),
+                 (time(8), time(14), False))
+        self.check_time_slots(times, slots)
+        # now change the padding bigly
+        booking.padding = timedelta(days=30)
+        booking.save()
+        slots = TimeSlot.objects.filter(
+            subject_id=self.host.id).order_by('start')
+        # this should still be the same as before because the booking shouldn't
+        # necessarily know about the padding
+        self.check_time_slots(times, slots)
+        booking._padding_changed()
+        slots = TimeSlot.objects.filter(
+            subject_id=self.host.id).order_by('start')
+        #  Now the padding will be 30 days
+        # * 11-11
+        # * 11-12
+        # * 12-12
+        times = ((time(11), time(11), True),
+                 (time(11), time(12), True),
+                 (time(12), time(12), True))
+        self.check_time_slots(times, slots)
+
+    def test_complex_padding_changes(self):
+        """
+        If a booking's padding changes, it's important to regenerate the
+        padded (and other affected) slots so that we don't display bad data.
+        """
+        # create an availability to use
+        avail = Availability.objects.create(
+            start_date=self.date.date(),
+            start_time=time(8),
+            end_time=time(14),
+            subject=self.host,
+            timezone=str(self.timezone)
+        )
+        avail.recreate_occurrences(
+            self.date, self.date + timedelta(days=10))
+        slots = TimeSlot.objects.filter(subject_id=self.host.id)
+        self.assertEqual(len(slots), 1)
+        times = ((time(8), time(14), False),)
+        self.check_time_slots(times, slots)
+
+        self.guest = User.objects.create(
+            email='guest@example.org', username="guest")
+        booking_time = pytz.utc.localize(
+            datetime.combine(avail.start_date, time(10)) - self.offset)
+        booking = models.Booking.objects.create(
+            guest=self.guest,
+            host=self.host,
+            subject=self.host,
+            requested_time_1=booking_time,
+        )
+        booking_two = models.Booking.objects.create(
+            guest=self.guest,
+            host=self.host,
+            subject=self.host,
+            requested_time_1=booking_time + timedelta(hours=3),
+        )
+        slots = TimeSlot.objects.filter(
+            subject_id=self.host.id).order_by('start')
+        #  They'll be 8
+        # * 8-9:30
+        # * 9:30-10
+        # * 10-11
+        # * 11-11:30
+        # * 11:30-12:30
+        # * 12:30-13:00
+        # * 13-14
+        # * 14-14:30
+        times = ((time(8), time(9, 30), False),  # free
+                 (time(9, 30), time(10), True),  # padding
+                 (time(10), time(11), True),  # booking
+                 (time(11), time(11, 30), True),  # padding
+                 (time(11, 30), time(12, 30), False),  # free
+                 (time(12, 30), time(13), True),  # padding
+                 (time(13), time(14), True),  # booking
+                 (time(14), time(14, 30), True))  # padding
+        self.check_time_slots(times, slots)
+        return
+        # now change the padding
+        booking.padding = timedelta(minutes=90)
+        booking.save()
+        slots = TimeSlot.objects.filter(
+            subject_id=self.host.id).order_by('start')
+        # this should still be the same as before because the booking shouldn't
+        # necessarily know about the padding
+        self.check_time_slots(times, slots)
+        booking._padding_changed()
+        booking_two._padding_changed()
+        slots = TimeSlot.objects.filter(
+            subject_id=self.host.id).order_by('start')
+        #  Now the padding will be 1 hour
+        # * 8-9
+        # * 9-10
+        # * 10-11
+        # * 11-12
+        # * 12-13
+        # * 13-14
+        # * 14-15
+        times = ((time(8), time(9), False),  # free
+                 (time(9), time(10), True),  # padding
+                 (time(10), time(11), True),  # booking
+                 (time(11), time(12), True),  # padding
+                 (time(12), time(13), True),  # padding
+                 (time(13), time(14), True),  # booking
+                 (time(14), time(15), True))
+        self.check_time_slots(times, slots)
+
     def test_multiple_request_times(self):
         first_avail = Availability.objects.create(
             start_date=self.date.date(),

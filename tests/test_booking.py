@@ -478,7 +478,8 @@ class AdvancedBookingTests(BaseCase):
         self.guest = User.objects.create(
             email='guest@example.org', username="guest")
         booking_time = pytz.utc.localize(
-            datetime.combine(availabilities[0].start_date, time(11)) - self.offset)
+            datetime.combine(availabilities[0].start_date, time(11))
+            - self.offset)
         booking = models.Booking.objects.create(
             guest=self.guest,
             host=self.host,

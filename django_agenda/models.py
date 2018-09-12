@@ -183,30 +183,32 @@ class Availability(models.Model):
         """
         span = TimeSpan(start, end)
         # get all the original ones
-        all_slots = self.occurrences.all()
-        # note, we can have multiple occurrences at the same start time
-        occurrence_dict = {}
-        for occurrence in all_slots:
-            occurrence_dict[(occurrence.start, occurrence.end)] = occurrence
-        # TODO: this matching is really inefficient
-        for r_start, r_end in self.get_recurrences(span):
-            if (r_start, r_end) in occurrence_dict:
-                # yay we matched our occurrence, pop it
-                del occurrence_dict[(r_start, r_end)]
-            else:
-                occurrence = AvailabilityOccurrence.objects.create(
-                    availability=self,
-                    start=r_start,
-                    end=r_end,
-                    subject_type=self.subject_type,
-                    subject_id=self.subject_id,
-                )
-                occurrence.regen()
-        # remaining occurrence_dict items need to die
-        for occurrence in occurrence_dict.values():
-            # just in case
-            occurrence.predelete()
-            occurrence.delete()
+        with transaction.atomic():
+            all_slots = self.occurrences.all()
+            # note, we can have multiple occurrences at the same start time
+            occurrence_dict = {}
+            for occurrence in all_slots:
+                occurrence_dict[
+                    (occurrence.start, occurrence.end)] = occurrence
+            # TODO: this matching is really inefficient
+            for r_start, r_end in self.get_recurrences(span):
+                if (r_start, r_end) in occurrence_dict:
+                    # yay we matched our occurrence, pop it
+                    del occurrence_dict[(r_start, r_end)]
+                else:
+                    occurrence = AvailabilityOccurrence.objects.create(
+                        availability=self,
+                        start=r_start,
+                        end=r_end,
+                        subject_type=self.subject_type,
+                        subject_id=self.subject_id,
+                    )
+                    occurrence.regen()
+            # remaining occurrence_dict items need to die
+            for occurrence in occurrence_dict.values():
+                # just in case
+                occurrence.predelete()
+                occurrence.delete()
 
 
 class AvailabilityOccurrence(models.Model):
@@ -341,11 +343,14 @@ class AvailabilityOccurrence(models.Model):
         new_ao_rels = []
         span = TimeSpan(self.start, self.start)
         merge_slots = []
+        delete_slot_ids = set()
         for ex_slot in extant_slots:
             if ex_slot.busy or ex_slot.bookings.exists():
                 span.end = ex_slot.start
                 if span.is_real:
-                    for rel in self._maybe_make_slots(span, merge_slots):
+                    rels, ds_id = self._maybe_make_slots(span, merge_slots)
+                    delete_slot_ids = delete_slot_ids.union(ds_id)
+                    for rel in rels:
                         new_ao_rels.append(rel)
                 merge_slots = []
                 span.start = ex_slot.end
@@ -353,23 +358,26 @@ class AvailabilityOccurrence(models.Model):
                 merge_slots.append(ex_slot)
         span.end = self.end
         if span.is_real:
-            for rel in self._maybe_make_slots(span, merge_slots):
+            rels, ds_id = self._maybe_make_slots(span, merge_slots)
+            delete_slot_ids = delete_slot_ids.union(ds_id)
+            for rel in rels:
                 new_ao_rels.append(rel)
 
+        TimeSlot.objects.filter(id__in=delete_slot_ids).delete()
         ao_through_model.objects.bulk_create(new_ao_rels)
 
     def _maybe_make_slots(self, span, merge_slots):
         ao_through_model = TimeSlot.availability_occurrences.through
+        # no slots, make a new one
         if len(merge_slots) < 1:
             new_slot = TimeSlot.objects.create(
                 start=span.start,
                 end=span.end,
                 subject_id=self.subject_id,
                 subject_type=self.subject_type)
-            yield ao_through_model(
+            return [ao_through_model(
                 availabilityoccurrence_id=self.id,
-                timeslot_id=new_slot.id,
-            )
+                timeslot_id=new_slot.id)], []
         else:
             all_ao_ids = {self.id}
             new_span = span.expanded(merge_slots[0])
@@ -382,15 +390,14 @@ class AvailabilityOccurrence(models.Model):
             merge_slots[0].start = new_span.start
             merge_slots[0].end = new_span.end
             merge_slots[0].save()
-            # make this more efficient by batching it somewhere
-            TimeSlot.objects.filter(
-                id__in=[slot.id for slot in merge_slots[1:]]).delete()
+            delete_slot_ids = set(slot.id for slot in merge_slots[1:])
 
-            for ao_id in all_ao_ids:
-                yield ao_through_model(
+            ao_throughs = [
+                ao_through_model(
                     availabilityoccurrence_id=ao_id,
-                    timeslot_id=merge_slots[0].id,
-                )
+                    timeslot_id=merge_slots[0].id) for ao_id in all_ao_ids]
+
+            return ao_throughs, delete_slot_ids
 
 
 class TimeSlot(models.Model, AbstractTimeSpan):

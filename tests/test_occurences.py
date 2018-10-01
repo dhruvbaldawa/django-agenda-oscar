@@ -52,3 +52,35 @@ class OccurrenceUnitTests(TestCase):
         all_slots = AvailabilityOccurrence.objects.filter(
             subject_type__pk=user_type.id, subject_id=self.host.id)
         self.assertEqual(len(all_slots), 6)
+
+    def testDaylightSavings(self):
+        timezone = pytz.timezone('America/Vancouver')
+        start = datetime(2018, 10, 30)
+        end = datetime(2018, 11, 10)
+        start_time = time(8)
+        end_time = time(15)
+        Availability.objects.create(
+            start_date=start.date(),
+            start_time=start_time,
+            end_time=end_time,
+            recurrence='RRULE:FREQ=WEEKLY',
+            subject=self.host,
+            timezone=timezone,
+        )
+        local_start = timezone.localize(start)
+        local_end = timezone.localize(end)
+        recreate_time_slots(local_start, local_end)
+
+        user_type = ContentType.objects.get_for_model(User)
+        all_slots = AvailabilityOccurrence.objects.filter(
+            subject_type__pk=user_type.id, subject_id=self.host.id)
+        self.assertEqual(len(all_slots), 2)
+        self.assertEqual(datetime(2018, 10,  30, 15, tzinfo=pytz.utc),
+                         all_slots[0].start)
+        self.assertEqual(datetime(2018, 10,  30, 22, tzinfo=pytz.utc),
+                         all_slots[0].end)
+        self.assertEqual(datetime(2018, 11,  6, 16, tzinfo=pytz.utc),
+                         all_slots[1].start)
+        self.assertEqual(datetime(2018, 11,  6, 23, tzinfo=pytz.utc),
+                         all_slots[1].end)
+

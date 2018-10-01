@@ -158,9 +158,22 @@ class Availability(models.Model):
 
     def get_recurrences(self, span: TimeSpan):
         duration = self.duration
+        zone = span.start.tzinfo
+        dtstart = datetime.combine(self.start_date, self.start_time)
+        naive_start = django.utils.timezone.make_naive(span.start, zone)
+        naive_end = django.utils.timezone.make_naive(span.end, zone)
         starts = self.recurrence.between(
-            span.start, span.end, inc=True, dtstart=self.start_localized)
+            naive_start, naive_end, inc=True, dtstart=dtstart)
         for start_time in starts:
+            try:
+                start_time = django.utils.timezone.make_aware(
+                    start_time, zone)
+            except (pytz.AmbiguousTimeError, pytz.NonExistentTimeError):
+                # if the user schedules something on a dst boundary, then
+                # sometimes we just have to guess the desired time
+                start_time = django.utils.timezone.make_aware(
+                    start_time, zone, is_dst=False)
+
             yield start_time, start_time + duration
 
     def __str__(self):

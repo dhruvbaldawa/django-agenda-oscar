@@ -67,9 +67,9 @@ class OccurrenceUnitTests(TestCase):
             subject=self.host,
             timezone=timezone,
         )
-        local_start = timezone.localize(start)
-        local_end = timezone.localize(end)
-        recreate_time_slots(local_start, local_end)
+        utc_start = pytz.utc.localize(start)
+        utc_end = pytz.utc.localize(end)
+        recreate_time_slots(utc_start, utc_end)
 
         user_type = ContentType.objects.get_for_model(User)
         all_slots = AvailabilityOccurrence.objects.filter(

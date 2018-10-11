@@ -150,18 +150,23 @@ class Availability(models.Model):
         return (datetime.combine(date(1, 1, 1), self.end_time)
                 - datetime.combine(date(1, 1, 1), self.start_time))
 
-    def timezone_localize(self, value: datetime):
+    def get_timezone(self):
         # TODO: this is hacky
         if hasattr(self.timezone, 'localize'):
-            return self.timezone.localize(value)
-        return pytz.timezone(self.timezone).localize(value)
+            return self.timezone
+        return pytz.timezone(self.timezone)
+
+    def timezone_localize(self, value: datetime):
+        return self.get_timezone().localize(value)
 
     def get_recurrences(self, span: TimeSpan):
         duration = self.duration
-        zone = span.start.tzinfo
+        zone = self.get_timezone()
         dtstart = datetime.combine(self.start_date, self.start_time)
-        naive_start = django.utils.timezone.make_naive(span.start, zone)
-        naive_end = django.utils.timezone.make_naive(span.end, zone)
+        naive_start = django.utils.timezone.make_naive(
+            span.start, span.start.tzinfo)
+        naive_end = django.utils.timezone.make_naive(
+            span.end, span.start.tzinfo)
         starts = self.recurrence.between(
             naive_start, naive_end, inc=True, dtstart=dtstart)
         for start_time in starts:

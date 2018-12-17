@@ -478,7 +478,7 @@ class OverlappingTimeError(TimeUnavailableError):
 
     def __init__(self):
         super().__init__(
-            'There\'s already a booking in part of this time, '
+            'There’s already a booking in part of this time, '
             'try either requesting the exact same time of the '
             'booking or a later time')
 
@@ -627,7 +627,7 @@ class AbstractBooking(models.Model):
                                 if self.is_duplicate(booking):
                                     raise InvalidState('Duplicate booking')
                             return span, [slot]
-                        else:
+                        elif not self._book_overlapping():
                             raise OverlappingTimeError()
                     if slot.contains(span):
                         return span, [slot]
@@ -841,6 +841,12 @@ class AbstractBooking(models.Model):
         """
         If this returns true, bookings will automatically create slots in
         unscheduled space.
+        """
+        return False
+
+    def _book_overlapping(self):
+        """
+        If this returns true, overlapping bookings can be created.
         """
         return False
 

@@ -625,7 +625,7 @@ class AbstractBooking(models.Model):
                         if slot.time_equals(span):
                             for booking in slot.bookings.all():
                                 if self.is_duplicate(booking):
-                                    raise InvalidState('Duplicate booking')
+                                    raise InvalidState(_('Duplicate booking'))
                             return span, [slot]
                         elif not self._book_overlapping():
                             raise OverlappingTimeError()
@@ -637,14 +637,13 @@ class AbstractBooking(models.Model):
                 if slot.bookings.exists():
                     raise OverlappingTimeError()
         if busy_slots:
-            raise TimeUnavailableError(
-                'Requested time is busy')
+            if not self._book_busy():
+                raise TimeUnavailableError(_('Requested time is busy'))
         if free_slots:
             return span, free_slots
         else:
             if not self._book_unscheduled():
-                raise TimeUnavailableError(
-                    'Requested time is unavailable')
+                raise TimeUnavailableError(_('Requested time is unavailable'))
             # all these slots can be pushed around
             for old_slot in slots:
                 if span.contains(old_slot):
@@ -836,6 +835,12 @@ class AbstractBooking(models.Model):
         If a slot is booked, determine whether it can be booked again.
         """
         return True
+
+    def _book_busy(self):
+        """
+        If this returns true, bookings will be able to overlap busy slots.
+        """
+        return False
 
     def _book_unscheduled(self):
         """

@@ -20,7 +20,6 @@ SETTINGS_DICT = {
     'BASE_DIR': APP_DIR,
     'INSTALLED_APPS': (
         'django.contrib.auth',
-        'django.contrib.contenttypes',
         'django.contrib.sessions',
         'django_agenda',
     ),

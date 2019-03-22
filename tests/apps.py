@@ -19,6 +19,8 @@ class AgendaDemoConfig(AppConfig):
     verbose_name = 'Agenda Demo'
 
     def ready(self):
+        from . import signals
+        signals.setup()
         setup_databases(verbosity=3, interactive=False)
         from django.contrib.auth.models import User
         User.objects.create_superuser('admin', 'admin@example.org', 'admin')

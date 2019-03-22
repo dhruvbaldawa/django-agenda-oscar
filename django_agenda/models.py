@@ -320,7 +320,9 @@ class AbstractAvailability(models.Model, metaclass=Meta):
         """
         span = TimeSpan(start, end)
         ao_cls = self.occurrences.model
-        schedule = Meta.get_schedule(self)
+        params = {
+            Meta.get_schedule_field(ao_cls): Meta.get_schedule(self)
+        }
         # get all the original ones
         with transaction.atomic():
             all_slots = self.occurrences.all()
@@ -338,8 +340,7 @@ class AbstractAvailability(models.Model, metaclass=Meta):
                         availability=self,
                         start=r_start,
                         end=r_end,
-                        schedule=schedule,
-                    )
+                        **params)
             # remaining occurrence_dict items need to die
             old_ids = (oc.id for oc in occurrence_dict.values())
             ao_cls.objects.filter(id__in=old_ids).delete()

@@ -78,6 +78,8 @@ class Meta(ModelBase):
                     related_name = 'availability_occurrences'
                 elif b.__name__ == "AbstractTimeSlot":
                     related_name = 'time_slots'
+                elif b.__name__ == "AbstractBooking":
+                    related_name = 'bookings'
             field_name = Meta.get_schedule_field(model)
             schedule_cls = Meta.get_schedule_model(model)
             try:

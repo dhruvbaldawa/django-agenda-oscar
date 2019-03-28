@@ -9,7 +9,5 @@ build
 .idea
 .coverage
 .tox
-AUTHORS
-ChangeLog
 coverage.xml
 .eggs

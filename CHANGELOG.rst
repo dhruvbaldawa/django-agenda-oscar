@@ -1,6 +1,11 @@
 CHANGES
 =======
 
+0.6.4
+-------
+
+* Fix long description rendering problems on pypi
+
 0.6.3
 -----
 
@@ -52,7 +57,7 @@ from 0.5, don't expect to migrate easily.
 * Add support for django 2
 
 0.5.1
-----`-
+-----
 
 * Fix bug if the start/end time weren't in the same zone as the availability
 

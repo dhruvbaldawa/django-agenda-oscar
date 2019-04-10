@@ -443,15 +443,21 @@ class AbstractBooking(models.Model, metaclass=Meta):
         return add_times, list(slot_times.values())
 
     def clean(self):
-        spans = [TimeSpan(x.start, x.end)
-                 for x in self.get_reserved_spans()]
-        spans = TimeSpan.merge_spans(spans)
+        # these are the spans that we want
+        new_spans = [TimeSpan(x.start, x.end)
+                     for x in self.get_reserved_spans()]
+        new_spans = set(TimeSpan.merge_spans(new_spans))
+
+        # these are the spans we already have, we don't need to validate
+        # new ones if they match these
+        for slot in self.time_slots.all():
+            new_spans.discard(TimeSpan(slot.start, slot.end))
 
         ts_cls = self.time_slots.model
         schedule = Meta.get_schedule(self)
         ao_cls = schedule.availability_occurrences.model
 
-        for span in spans:
+        for span in new_spans:
             # make sure there is available time
             if not self._book_unscheduled():
                 params = {

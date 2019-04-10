@@ -408,3 +408,36 @@ class AdvancedBookingTests(BaseCase):
                  (time(11), time(12), True),
                  (time(12), time(12, 30), True))
         self.check_time_slots(times, slots)
+
+    def test_unchanged_slots_no_recheck(self):
+        """
+        If a slot is unchanged, don't revaliate in it ``clean``.
+        """
+        guest = User.objects.create(
+            email='guest@example.org', username="guest")
+        # so first off, the host will create a booking
+        first_booking_time = pytz.utc.localize(datetime(2010, 1, 3, 8))
+        second_booking_time = pytz.utc.localize(datetime(2010, 1, 4, 8))
+        b = models.Booking(
+            guest=guest,
+            schedule=self.host,
+            requested_time_1=first_booking_time,
+            requested_time_2=second_booking_time,
+        )
+        # note that the booker can't pass validation,
+        # since there's no availabilities
+        with self.assertRaises(ValidationError):
+            with b.set_editor(guest):
+                b.full_clean()
+        # the host can bypass the validation though
+        with b.set_editor(self.host):
+            b.full_clean()
+            b.save()
+        # now, when the booker goes to confirm it there
+        # should be no validation
+        with b.set_editor(guest):
+            b.confirm(first_booking_time)
+            b.full_clean()
+            b.save()
+        assert list(b.get_requested_times()) == [first_booking_time]
+

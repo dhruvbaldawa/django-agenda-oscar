@@ -100,7 +100,6 @@ class Booking(AbstractBooking):
         super().__init__(*args, **kwargs)
         self.loading = False
         self.__editor = None
-        self.__super_editor = False
         self.allow_multiple_bookings = False
 
     def clean(self):
@@ -239,21 +238,17 @@ class Booking(AbstractBooking):
         If this returns true, bookings will automatically create slots in
         unscheduled space.
         """
-        return self.__super_editor or self.__editor == self.schedule
-
-    @contextlib.contextmanager
-    def set_super_editor(self):
-        assert not self.__super_editor
-        assert self.__editor is None
-        self.__super_editor = True
-        yield
-        self.__super_editor = False
+        return self.__editor == self.schedule
 
     @contextlib.contextmanager
     def set_editor(self, user):
         assert self.__editor is None
         self.__editor = user
-        yield
+        try:
+            yield
+        except Exception:
+            self.__editor = None
+            raise
         self.__editor = None
 
     def __str__(self):

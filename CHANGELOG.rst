@@ -1,8 +1,13 @@
 CHANGES
 =======
 
+0.6.5
+-----
+
+* Don‘t validate already allocated slots
+
 0.6.4
--------
+-----
 
 * Fix long description rendering problems on pypi
 

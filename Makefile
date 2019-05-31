@@ -1,4 +1,4 @@
-.PHONY: flake8 test coverage
+.PHONY: flake8 test coverage docs
 
 flake8:
 	flake8 django_agenda tests
@@ -19,3 +19,8 @@ demo:
 
 coverage:
 	pytest --cov=django_agenda tests/
+
+docs:
+	rm docs/api -rf
+	sphinx-apidoc -fMT -o docs/api django_agenda
+	sphinx-build -a docs build/sphinx/html

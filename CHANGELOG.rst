@@ -1,5 +1,12 @@
-CHANGES
+Changes
 =======
+
+0.7.0
+-----
+
+* Deprecated ``_get_padding`` and related methods in favor of methods without
+  leading underscores
+* Added some basic documentation
 
 0.6.5
 -----

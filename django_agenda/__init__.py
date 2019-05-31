@@ -1,4 +1,4 @@
-default_app_config = 'django_agenda.apps.Config'
+default_app_config = "django_agenda.apps.Config"
 
 
-VERSION = '0.6.5'
+VERSION = "0.7.0"

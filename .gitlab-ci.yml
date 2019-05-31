@@ -16,3 +16,16 @@ test:
   - pip install -U pip setuptools
   - pip install -e .[test]
   - tox
+
+pages:
+  stage: deploy
+  script:
+  - pip install -U pip setuptools
+  - pip install -e .[docs]
+  - make docs
+  - mv build/sphinx/html/ public/
+  artifacts:
+    paths:
+    - public
+  only:
+  - master

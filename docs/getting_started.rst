@@ -31,24 +31,24 @@ Add ``"django_agenda"`` to your ``INSTALLED_APPS`` setting::
 Concepts
 ========
 
-Before we actually talk about any concepts, I'm going to bring up a bunch
+Before we actually talk about any concepts, I’m going to bring up a bunch
 of use-cases
 
    * Hovercraft Academy is a school, and it wants a system that will allow it
      to allocate the usage of their classrooms.
    * Eel Incorporated is a company. They want a system to manage their
-     employees schedules so they know when they're busy and don't make
+     employees schedules so they know when they’re busy and don’t make
      overlapping meetings.
 
-Second, let's talk about the ideas behind how the scheduling
+Second, let’s talk about the ideas behind how the scheduling
 system works from this perspective. There are two models that you must think
 through when implementing this:
 
 1. The “Schedule” model: This is the model that “owns” the schedule. It
    can be any type of model, even a built-in model like the user model from
-   ``django.contrib.auth``. This model doesn't need to actually include any
-   scheduling logic, it's just the thing that the schedule is attached to.
-   Here's some examples:
+   ``django.contrib.auth``. This model doesn’t need to actually include any
+   scheduling logic, it’s just the thing that the schedule is attached to.
+   Here’s some examples:
 
    * For Hovercraft Academy, this would be the classrooms.
    * For Eal Incorporated, this would be the employees.
@@ -57,12 +57,12 @@ through when implementing this:
    schedule. This model is responsible for the majority of the configurable
    scheduling logic, like knowing what time, if any time at all, should be
    reserved, and if reserved times should be marked busy, and if busy times
-   can overlap. Here's some examples:
+   can overlap. Here’s some examples:
 
    * For Hovercraft Academy, this would be a classroom reservation.
    * For Eal Incorporated, this would be the meetings.
 
-There's also three other models that we'll cover shortly.
+There’s also three other models that we’ll cover shortly.
 
 
 Creating & Linking Models
@@ -70,14 +70,15 @@ Creating & Linking Models
 
 Django Agenda doesn’t provide models for you. We did in earlier versions, and
 used contenttypes to link the models. That turned out to make for poor
-usability and fragile code, since we couldn't trust the database to understand
+usability and fragile code, since we couldn’t trust the database to understand
 anything. Instead, we provide a bunch of abstract base classes that you can
 use to construct your models from.
 
-First, you'll need to decide what your schedule model is. Here's an example
+First, you’ll need to decide what your schedule model is. Here’s an example
 using Hovercraft Academy:
 
 .. code-block:: python
+
    from django.db import models
 
    class Room(models.Model):
@@ -88,12 +89,12 @@ Occurrence, and TimeSlot. The best way to do this, is to use the relevant
 abstract classes, and specify a few special fields, so that the models can
 find each other.
 
-In order to help keep all our models straight, here's some pointers.
+In order to help keep all our models straight, here’s some pointers.
 
 * Availabilities are what the end user sets. They can be set in any time zone
   and they can recur.
-* Availability Occurrences are mostly for internal use. They're basically
-  copies of Availabilities, but they don't recur.
+* Availability Occurrences are mostly for internal use. They’re basically
+  copies of Availabilities, but they don’t recur.
 * TimeSlots are the times that have already been blocked off from the
   Availabilities. As a general rule, a time is free if it is covered by the
   Availability Occurrences, and not covered by a busy TimeSlot.
@@ -163,15 +164,21 @@ Now, we can do something like this:
    start_date = date(2004, 1, 1)
    start_time = time(8)
    end_time = time(17)
-   timezone = pytz.timezone('America/Vancouver')
-   room = Room.objects.create(number='foo')
+   timezone = pytz.timezone("America/Vancouver")
+   room = Room.objects.create(number="foo")
    # available from 8 AM to 5 PM
-   Availability.objects.create(
+   availability = Availability.objects.create(
        room=room,
        start_date=start_date,
        start_time=start_time,
        end_time=end_time,
        timezone=tz,
+   )
+   # note: you have to run this when your availabilities change, or when
+   # your availability occurrence data gets stale
+   availability.recreate_occurrences(
+       datetime(2004, 1, 1, 1, tzinfo=tz),
+       datetime(2004, 1, 2, 1, tzinfo=tz),
    )
    # reserve from 9-11
    reservation = RoomReservation(
@@ -188,5 +195,22 @@ Now, we can do something like this:
        start_time=datetime(2004, 1, 1, 10, tzinfo=tz),
        end_time=datetime(2004, 1, 1, 12, tzinfo=tz),
    )
-   # this won't work, time already reserved.
+   # this won’t work, time already reserved.
    reservation.clean()
+
+
+Generating Availability Occurrences
+===================================
+
+The main tricky thing is that availability occurrences aren’t automatically
+generated by default. This is because there could easily be an infinite number
+of them, so we can’t generate all of them, and we leave it up to you to
+decide how far in the future to generate these availability occurrences.
+
+The ``AbstractAvailability.recreate_occurrences`` method can be used to
+regenerate them. It takes a start & end ``datetime`` and regenerates the
+occurrences between that range. It’s recommended that you call this when
+availabilities are changed and on a regular schedule. For example, if you
+plan to generate availabilities 1 year in advance, you want to call it every
+week or so, otherwise, after a year, you’re going to run out of free time.
+

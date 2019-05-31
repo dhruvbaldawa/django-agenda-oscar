@@ -22,7 +22,7 @@ Each of these models has a generic relation to a "schedule" model.
 An owner can be anything: a user, a group, a locations. You specify
 this model in the Meta options.
 """
-
+import warnings
 from datetime import date, datetime, timedelta
 from typing import List
 
@@ -37,10 +37,15 @@ from django.utils.translation import gettext_lazy as _
 from recurrence.fields import RecurrenceField
 from timezone_field import TimeZoneField
 
-from .time_span import (AbstractTimeSpan, TimeSpan, PaddedTimeSpan)
+from .time_span import AbstractTimeSpan, TimeSpan, PaddedTimeSpan
 
-__all__ = ['AbstractAvailability', 'AbstractAvailabilityOccurrence',
-           'AbstractTimeSlot', 'AbstractBooking', 'get_free_times']
+__all__ = [
+    "AbstractAvailability",
+    "AbstractAvailabilityOccurrence",
+    "AbstractTimeSlot",
+    "AbstractBooking",
+    "get_free_times",
+]
 
 
 # Old stub models
@@ -66,38 +71,43 @@ class TimeSlot(models.Model):
 class Meta(ModelBase):
     """A metaclass for abstract models that orchestrates the relationships
     """
+
     def __new__(mcs, name, bases, attrs):
         model = super().__new__(mcs, name, bases, attrs)
-        meta = getattr(model, '_meta')
+        meta = model._meta
         if not meta.abstract:
-            related_name = '+'
+            related_name = "+"
             for b in bases:
                 if b.__name__ == "AbstractAvailability":
-                    related_name = 'availabilities'
+                    related_name = "availabilities"
                 elif b.__name__ == "AbstractAvailabilityOccurrence":
-                    related_name = 'availability_occurrences'
+                    related_name = "availability_occurrences"
                 elif b.__name__ == "AbstractTimeSlot":
-                    related_name = 'time_slots'
+                    related_name = "time_slots"
                 elif b.__name__ == "AbstractBooking":
-                    related_name = 'bookings'
+                    related_name = "bookings"
             field_name = Meta.get_schedule_field(model)
             schedule_cls = Meta.get_schedule_model(model)
             try:
                 meta.get_field(field_name)
             except models.FieldDoesNotExist:
                 model.add_to_class(
-                    field_name, models.ForeignKey(
-                        to=schedule_cls, on_delete=models.CASCADE,
-                        related_name=related_name))
+                    field_name,
+                    models.ForeignKey(
+                        to=schedule_cls,
+                        on_delete=models.CASCADE,
+                        related_name=related_name,
+                    ),
+                )
 
         return model
 
     @staticmethod
     def get_schedule_field(model):
-        meta = getattr(model, 'AgendaMeta', None)
+        meta = getattr(model, "AgendaMeta", None)
         if meta is None:
-            raise RuntimeError('Model must specify AgendaMeta')
-        return getattr(meta, 'schedule_field', 'schedule')
+            raise RuntimeError("Model must specify AgendaMeta")
+        return getattr(meta, "schedule_field", "schedule")
 
     @staticmethod
     def get_schedule(model):
@@ -105,99 +115,105 @@ class Meta(ModelBase):
 
     @staticmethod
     def get_schedule_model(model):
-        meta = getattr(model, 'AgendaMeta', None)
+        meta = getattr(model, "AgendaMeta", None)
         if meta is None:
-            raise RuntimeError('Model must specify AgendaMeta')
-        result = getattr(meta, 'schedule_model', None)
+            raise RuntimeError("Model must specify AgendaMeta")
+        result = getattr(meta, "schedule_model", None)
         if result is None:
-            raise RuntimeError('Model must specify AgendaMeta.schedule_model')
+            raise RuntimeError("Model must specify AgendaMeta.schedule_model")
         return result
 
 
 class OccurrenceMeta(Meta):
-
     def __new__(mcs, name, bases, attrs):
         model = super().__new__(mcs, name, bases, attrs)
-        meta = getattr(model, '_meta', None)
+        meta = getattr(model, "_meta", None)
         if meta is None:
-            raise RuntimeError('Model must derive from ModelBase')
+            raise RuntimeError("Model must derive from ModelBase")
         if not meta.abstract:
-            related_name = 'occurrences'
+            related_name = "occurrences"
             field_name = OccurrenceMeta.get_availability_field(model)
             avail_cls = OccurrenceMeta.get_availability_model(model)
             try:
                 meta.get_field(field_name)
             except models.FieldDoesNotExist:
                 model.add_to_class(
-                    field_name, models.ForeignKey(
-                        to=avail_cls, on_delete=models.CASCADE,
-                        related_name=related_name))
+                    field_name,
+                    models.ForeignKey(
+                        to=avail_cls,
+                        on_delete=models.CASCADE,
+                        related_name=related_name,
+                    ),
+                )
 
         return model
 
     @staticmethod
     def get_availability_field(_model):
-        return 'availability'
+        return "availability"
 
     @staticmethod
     def get_availability_model(model):
-        meta = getattr(model, 'AgendaMeta', None)
+        meta = getattr(model, "AgendaMeta", None)
         if meta is None:
-            raise RuntimeError('Model must specify AgendaMeta')
-        result = getattr(meta, 'availability_model', None)
+            raise RuntimeError("Model must specify AgendaMeta")
+        result = getattr(meta, "availability_model", None)
         if result is None:
-            raise RuntimeError(
-                'Model must specify AgendaMeta.availability_model')
+            raise RuntimeError("Model must specify AgendaMeta.availability_model")
         return result
 
 
 class TimeSlotMeta(Meta):
-
     def __new__(mcs, name, bases, attrs):
         model = super().__new__(mcs, name, bases, attrs)
-        meta = getattr(model, '_meta', None)
+        meta = getattr(model, "_meta", None)
         if meta is None:
-            raise RuntimeError('Model must derive from ModelBase')
+            raise RuntimeError("Model must derive from ModelBase")
         if not meta.abstract:
-            related_name = 'time_slots'
-            field_name = 'booking'
+            related_name = "time_slots"
+            field_name = "booking"
             booking_cls = TimeSlotMeta.get_booking_field(model)
             try:
                 meta.get_field(field_name)
             except models.FieldDoesNotExist:
                 model.add_to_class(
-                    field_name, models.ForeignKey(
-                        to=booking_cls, on_delete=models.CASCADE,
-                        blank=True, null=True,
-                        related_name=related_name))
+                    field_name,
+                    models.ForeignKey(
+                        to=booking_cls,
+                        on_delete=models.CASCADE,
+                        blank=True,
+                        null=True,
+                        related_name=related_name,
+                    ),
+                )
 
         return model
 
     @staticmethod
     def get_booking_field(_model):
-        return 'booking'
+        return "booking"
 
     @staticmethod
     def get_booking_model(model):
-        meta = getattr(model, 'AgendaMeta', None)
+        meta = getattr(model, "AgendaMeta", None)
         if meta is None:
-            raise RuntimeError('Model must specify AgendaMeta')
-        result = getattr(meta, 'booking_model', None)
+            raise RuntimeError("Model must specify AgendaMeta")
+        result = getattr(meta, "booking_model", None)
         if result is None:
-            raise RuntimeError(
-                'Model must specify AgendaMeta.booking_model')
+            raise RuntimeError("Model must specify AgendaMeta.booking_model")
         return result
 
 
 def get_free_times(schedule, start: datetime, end: datetime) -> List[TimeSpan]:
-    aos = schedule.availability_occurrences.filter(
-        end__gt=start, start__lt=end)
-    spans = list(TimeSpan.merge_spans(
-        (TimeSpan(ao.start, ao.end) for ao in aos)))
+    aos = schedule.availability_occurrences.filter(end__gt=start, start__lt=end)
+    spans = list(TimeSpan.merge_spans((TimeSpan(ao.start, ao.end) for ao in aos)))
 
     if spans:
-        busy_slots = list(schedule.time_slots.filter(
-            busy=True, end__gt=start, start__lt=end).order_by('-start'))
+        busy_slots = list(
+            schedule.time_slots.filter(
+                busy=True, end__gt=start, start__lt=end
+            ).order_by("-start")
+        )
 
         idx = 0
         while busy_slots:
@@ -226,6 +242,7 @@ class AbstractSchedule(models.Model):
     Using this is entirely optional, but lets you use `get_free_times`
     as an instance method.
     """
+
     class Meta:
         abstract = True
 
@@ -242,7 +259,7 @@ class AbstractAvailability(models.Model, metaclass=Meta):
     """
 
     class Meta:
-        verbose_name_plural = _('availabilities')
+        verbose_name_plural = _("availabilities")
         abstract = True
 
     objects = models.Manager()
@@ -259,21 +276,22 @@ class AbstractAvailability(models.Model, metaclass=Meta):
     @property
     def start_localized(self) -> datetime:
         return self.timezone_localize(
-            datetime.combine(self.start_date, self.start_time))
+            datetime.combine(self.start_date, self.start_time)
+        )
 
     @property
     def end_localized(self) -> datetime:
-        return self.timezone_localize(
-            datetime.combine(self.start_date, self.end_time))
+        return self.timezone_localize(datetime.combine(self.start_date, self.end_time))
 
     @property
     def duration(self) -> timedelta:
-        return (datetime.combine(date(1, 1, 1), self.end_time)
-                - datetime.combine(date(1, 1, 1), self.start_time))
+        return datetime.combine(date(1, 1, 1), self.end_time) - datetime.combine(
+            date(1, 1, 1), self.start_time
+        )
 
     def get_timezone(self):
         # TODO: this is hacky
-        if hasattr(self.timezone, 'localize'):
+        if hasattr(self.timezone, "localize"):
             return self.timezone
         return pytz.timezone(self.timezone)
 
@@ -284,33 +302,31 @@ class AbstractAvailability(models.Model, metaclass=Meta):
         duration = self.duration
         zone = self.get_timezone()
         dt_start = datetime.combine(self.start_date, self.start_time)
-        naive_start = django.utils.timezone.make_naive(
-            span.start, span.start.tzinfo)
-        naive_end = django.utils.timezone.make_naive(
-            span.end, span.start.tzinfo)
+        naive_start = django.utils.timezone.make_naive(span.start, span.start.tzinfo)
+        naive_end = django.utils.timezone.make_naive(span.end, span.start.tzinfo)
         starts = self.recurrence.between(
-            naive_start, naive_end, inc=True, dtstart=dt_start)
+            naive_start, naive_end, inc=True, dtstart=dt_start
+        )
         for start_time in starts:
             try:
-                start_time = django.utils.timezone.make_aware(
-                    start_time, zone)
+                start_time = django.utils.timezone.make_aware(start_time, zone)
             except (pytz.AmbiguousTimeError, pytz.NonExistentTimeError):
                 # if the user schedules something on a dst boundary, then
                 # sometimes we just have to guess the desired time
                 start_time = django.utils.timezone.make_aware(
-                    start_time, zone, is_dst=False)
+                    start_time, zone, is_dst=False
+                )
 
             yield start_time, start_time + duration
 
     def __str__(self):
-        result = '{0}-{1}'.format(
+        result = "{0}-{1}".format(
             TimeFormat(self.start_time).format(settings.TIME_FORMAT),
             TimeFormat(self.end_time).format(settings.TIME_FORMAT),
         )
         if not self.recurrence:
-            result = '{0} {1}'.format(
-                DateFormat(self.start_date).format(settings.DATE_FORMAT),
-                result
+            result = "{0} {1}".format(
+                DateFormat(self.start_date).format(settings.DATE_FORMAT), result
             )
         return result
 
@@ -322,27 +338,22 @@ class AbstractAvailability(models.Model, metaclass=Meta):
         """
         span = TimeSpan(start, end)
         ao_cls = self.occurrences.model
-        params = {
-            Meta.get_schedule_field(ao_cls): Meta.get_schedule(self)
-        }
+        params = {Meta.get_schedule_field(ao_cls): Meta.get_schedule(self)}
         # get all the original ones
         with transaction.atomic():
             all_slots = self.occurrences.all()
             # note, we can have multiple occurrences at the same start time
             occurrence_dict = {}
             for occurrence in all_slots:
-                occurrence_dict[
-                    (occurrence.start, occurrence.end)] = occurrence
+                occurrence_dict[(occurrence.start, occurrence.end)] = occurrence
             for r_start, r_end in self.get_recurrences(span):
                 if (r_start, r_end) in occurrence_dict:
                     # yay we matched our occurrence, pop it
                     del occurrence_dict[(r_start, r_end)]
                 else:
                     ao_cls.objects.create(
-                        availability=self,
-                        start=r_start,
-                        end=r_end,
-                        **params)
+                        availability=self, start=r_start, end=r_end, **params
+                    )
             # remaining occurrence_dict items need to die
             old_ids = (oc.id for oc in occurrence_dict.values())
             ao_cls.objects.filter(id__in=old_ids).delete()
@@ -361,8 +372,8 @@ class AbstractAvailabilityOccurrence(models.Model, metaclass=OccurrenceMeta):
     """
 
     class Meta:
-        verbose_name = _('availability occurrence')
-        verbose_name_plural = _('availability occurrences')
+        verbose_name = _("availability occurrence")
+        verbose_name_plural = _("availability occurrences")
         abstract = True
 
     objects = models.Manager()
@@ -392,27 +403,80 @@ class AbstractTimeSlot(models.Model, AbstractTimeSpan, metaclass=TimeSlotMeta):
     busy = models.BooleanField(default=False, db_index=True)
 
     padding_for = models.ForeignKey(
-        'TimeSlot', blank=True, null=True, on_delete=models.CASCADE,
-        related_name='padded_by')
+        "TimeSlot",
+        blank=True,
+        null=True,
+        on_delete=models.CASCADE,
+        related_name="padded_by",
+    )
 
     def __str__(self):
-        return 'TimeSlot object ({}:{})'.format(
-            self.id, AbstractTimeSpan.__str__(self))
+        return "TimeSlot object ({}:{})".format(self.id, AbstractTimeSpan.__str__(self))
 
 
 class AbstractBooking(models.Model, metaclass=Meta):
-
     class Meta:
         abstract = True
 
-    busy_message = _('Requested time {start}–{end} is busy')
-    un_free_message = _('Requested time {start}–{end} is not available')
+    busy_message = _("Requested time {start}–{end} is busy")
+    un_free_message = _("Requested time {start}–{end} is not available")
 
     def get_reserved_spans(self) -> List[TimeSpan]:
         """
         Return a list of times that should be reserved
         """
         raise NotImplementedError
+
+    def get_padding(self) -> timedelta:
+        """
+        Return the amount of time required between bookings.
+
+        This time will get marked as busy.
+        """
+        if hasattr(self, "_get_padding"):
+            warnings.warn(
+                DeprecationWarning("_get_padding has been replaced with get_padding")
+            )
+            return self._get_padding()
+        return timedelta(0)
+
+    def is_booked_slot_busy(self):
+        """
+        If a slot is booked, determine whether it can be booked again.
+        """
+        if hasattr(self, "_is_booked_slot_busy"):
+            warnings.warn(
+                DeprecationWarning(
+                    "_is_booked_slot_busy has been replaced with is_booked_slot_busy"
+                )
+            )
+            return self._is_booked_slot_busy()
+        return True
+
+    def can_book_busy(self):
+        """
+        If this returns true, bookings will be able to overlap busy slots.
+        """
+        if hasattr(self, "_book_busy"):
+            warnings.warn(
+                DeprecationWarning("_book_busy has been replaced with can_book_busy")
+            )
+            return self._book_busy()
+        return False
+
+    def can_book_unscheduled(self):
+        """
+        If this returns true, bookings will automatically create slots in
+        unscheduled space.
+        """
+        if hasattr(self, "_book_unscheduled"):
+            warnings.warn(
+                DeprecationWarning(
+                    "_book_unscheduled has been replaced with can_book_unscheduled"
+                )
+            )
+            return self._book_unscheduled()
+        return False
 
     def time_slot_diff(self):
         """
@@ -426,7 +490,7 @@ class AbstractBooking(models.Model, metaclass=Meta):
         """
         slot_times = dict()
         add_times = []
-        padding = self._get_padding()
+        padding = self.get_padding()
         # add all the slots to slot_times
         if self.pk is not None:
             for slot in self.time_slots.all():
@@ -444,8 +508,7 @@ class AbstractBooking(models.Model, metaclass=Meta):
 
     def clean(self):
         # these are the spans that we want
-        new_spans = [TimeSpan(x.start, x.end)
-                     for x in self.get_reserved_spans()]
+        new_spans = [TimeSpan(x.start, x.end) for x in self.get_reserved_spans()]
         new_spans = set(TimeSpan.merge_spans(new_spans))
 
         # these are the spans we already have, we don't need to validate
@@ -459,51 +522,57 @@ class AbstractBooking(models.Model, metaclass=Meta):
 
         for span in new_spans:
             # make sure there is available time
-            if not self._book_unscheduled():
+            if not self.can_book_unscheduled():
                 params = {
-                    Meta.get_schedule_field(ao_cls):
-                        getattr(self, Meta.get_schedule_field(self))}
+                    Meta.get_schedule_field(ao_cls): getattr(
+                        self, Meta.get_schedule_field(self)
+                    )
+                }
                 free_times = ao_cls.objects.filter(
-                    start__lt=span.end, end__gt=span.start, **params)
+                    start__lt=span.end, end__gt=span.start, **params
+                )
                 free_spans = TimeSpan.merge_spans(
-                    (TimeSpan(ao.start, ao.end) for ao in free_times))
+                    (TimeSpan(ao.start, ao.end) for ao in free_times)
+                )
                 # the time should be free iff there is one merged span
                 # and it goes the whole time
-                if not (len(free_spans) == 1 and
-                        free_spans[0].start <= span.start and
-                        free_spans[0].end >= span.end):
+                if not (
+                    len(free_spans) == 1
+                    and free_spans[0].start <= span.start
+                    and free_spans[0].end >= span.end
+                ):
                     raise ValidationError(
-                        self.un_free_message.format(
-                            start=span.start, end=span.end))
+                        self.un_free_message.format(start=span.start, end=span.end)
+                    )
 
                 # make sure it's not busy already
-            if not self._book_busy():
+            if not self.can_book_busy():
                 params = {
-                    Meta.get_schedule_field(ts_cls):
-                        getattr(self, Meta.get_schedule_field(self))}
+                    Meta.get_schedule_field(ts_cls): getattr(
+                        self, Meta.get_schedule_field(self)
+                    )
+                }
                 # exclude slots from my own booking
                 booking_field = TimeSlotMeta.get_booking_field(ts_cls)
                 busy_q = ts_cls.objects.filter(
-                    start__lt=span.end, end__gt=span.start,
-                    busy=True, **params)
+                    start__lt=span.end, end__gt=span.start, busy=True, **params
+                )
                 if self.id is not None:
-                    ex_q = models.Q(**{booking_field: self}) | \
-                        models.Q(**{'padding_for__{}'.format(
-                            booking_field): self})
+                    ex_q = models.Q(**{booking_field: self}) | models.Q(
+                        **{"padding_for__{}".format(booking_field): self}
+                    )
                     busy_q = busy_q.exclude(ex_q)
                 if busy_q.exists():
                     raise ValidationError(
-                        self.busy_message.format(
-                            start=span.start, end=span.end))
+                        self.busy_message.format(start=span.start, end=span.end)
+                    )
 
     def save(self, *args, **kwargs):
         # reserve slots if necessary
         add_times, rm_slots = self.time_slot_diff()
-        padding = self._get_padding()
+        padding = self.get_padding()
         ts_cls = self.time_slots.model
-        ts_params = {
-            Meta.get_schedule_field(ts_cls): Meta.get_schedule(self)
-        }
+        ts_params = {Meta.get_schedule_field(ts_cls): Meta.get_schedule(self)}
 
         with transaction.atomic():
             # clear slots in case that means we can book again
@@ -520,31 +589,30 @@ class AbstractBooking(models.Model, metaclass=Meta):
                     booking=self,
                     start=span.start,
                     end=span.end,
-                    busy=self._is_booked_slot_busy(),
-                    **ts_params)
+                    busy=self.is_booked_slot_busy(),
+                    **ts_params
+                )
                 if padding:
-                    padded_slots.append(ts_cls(
-                        start=span.padded_start,
-                        end=span.start,
-                        busy=True,
-                        padding_for=new_slot,
-                        **ts_params))
-                    padded_slots.append(ts_cls(
-                        start=span.end,
-                        end=span.padded_end,
-                        busy=True,
-                        padding_for=new_slot,
-                        **ts_params))
+                    padded_slots.append(
+                        ts_cls(
+                            start=span.padded_start,
+                            end=span.start,
+                            busy=True,
+                            padding_for=new_slot,
+                            **ts_params
+                        )
+                    )
+                    padded_slots.append(
+                        ts_cls(
+                            start=span.end,
+                            end=span.padded_end,
+                            busy=True,
+                            padding_for=new_slot,
+                            **ts_params
+                        )
+                    )
             ts_cls.objects.bulk_create(padded_slots)
         # end transaction
-
-    def _get_padding(self) -> timedelta:
-        """
-        Return the amount of time required between bookings.
-
-        This time will get marked as busy.
-        """
-        return timedelta(0)
 
     def _padding_changed(self):
         """
@@ -552,11 +620,9 @@ class AbstractBooking(models.Model, metaclass=Meta):
 
         It's the booking's responsibility to update itself if required
         """
-        padding_length = self._get_padding()
+        padding_length = self.get_padding()
         ts_cls = self.time_slots.model
-        ts_params = {
-            Meta.get_schedule_field(ts_cls): Meta.get_schedule(self)
-        }
+        ts_params = {Meta.get_schedule_field(ts_cls): Meta.get_schedule(self)}
 
         with transaction.atomic():
             for slot in self.time_slots.all():
@@ -570,29 +636,12 @@ class AbstractBooking(models.Model, metaclass=Meta):
                         end=slot.start,
                         busy=True,
                         padding_for=slot,
-                        **ts_params)
+                        **ts_params
+                    )
                     ts_cls.objects.create(
                         start=slot.end,
                         end=slot.end + padding_length,
                         busy=True,
                         padding_for=slot,
-                        **ts_params)
-
-    def _is_booked_slot_busy(self):
-        """
-        If a slot is booked, determine whether it can be booked again.
-        """
-        return True
-
-    def _book_busy(self):
-        """
-        If this returns true, bookings will be able to overlap busy slots.
-        """
-        return False
-
-    def _book_unscheduled(self):
-        """
-        If this returns true, bookings will automatically create slots in
-        unscheduled space.
-        """
-        return False
+                        **ts_params
+                    )

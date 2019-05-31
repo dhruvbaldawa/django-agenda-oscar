@@ -45,7 +45,7 @@ For further instructions, see `the documentation`_.
    :alt: Build Status
 
 .. |docs-badge| image:: https://img.shields.io/badge/docs-latest-informational.svg
-    :target: `the documentation`_
+   :target: `the documentation`_
    :alt: Documentation
 
 .. |coverage-badge| image:: https://gitlab.com/alantrick/django-agenda/badges/master/coverage.svg
